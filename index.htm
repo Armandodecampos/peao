@@ -10,19 +10,27 @@
 
         #ui {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            color: white;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             pointer-events: none;
-            display: none;
             z-index: 10;
         }
+        .floating-ui {
+            position: absolute;
+            pointer-events: none;
+            width: 140px;
+            text-align: center;
+            display: none;
+            color: white;
+        }
         .stat-bar {
-            width: 220px;
-            height: 12px;
+            width: 100%;
+            height: 8px;
             background: rgba(255,255,255,0.1);
             border-radius: 20px;
-            margin-bottom: 15px;
+            margin-bottom: 5px;
             overflow: hidden;
             border: 1px solid rgba(255,255,255,0.2);
         }
@@ -127,10 +135,14 @@
 </div>
 
 <div id="ui">
-    <div style="font-size: 12px; margin-bottom: 4px; letter-spacing: 1px;">ESTABILIDADE JOGADOR</div>
-    <div class="stat-bar"><div id="player-stamina" class="fill"></div></div>
-    <div style="font-size: 12px; margin-bottom: 4px; letter-spacing: 1px;">ESTABILIDADE RIVAL</div>
-    <div class="stat-bar"><div id="enemy-stamina" class="fill"></div></div>
+    <div id="player-ui" class="floating-ui">
+        <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">VOCÊ</div>
+        <div class="stat-bar"><div id="player-stamina" class="fill"></div></div>
+    </div>
+    <div id="enemy-ui" class="floating-ui">
+        <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">RIVAL</div>
+        <div class="stat-bar"><div id="enemy-stamina" class="fill"></div></div>
+    </div>
 </div>
 
 <div id="msg" class="overlay">
@@ -419,6 +431,15 @@
             config.player.vel.addScaledVector(forceDir, impulseP);
             config.enemy.vel.addScaledVector(forceDir, -impulseE);
 
+            // Impulso vertical e efeito de chocalho (rattle)
+            config.player.vel.y += 0.08;
+            config.enemy.vel.y += 0.08;
+            const rattle = 0.02;
+            config.player.vel.x += (Math.random() - 0.5) * rattle;
+            config.player.vel.z += (Math.random() - 0.5) * rattle;
+            config.enemy.vel.x += (Math.random() - 0.5) * rattle;
+            config.enemy.vel.z += (Math.random() - 0.5) * rattle;
+
             // A perda de estabilidade continua sendo o foco principal do combate
             const damage = 2 + (relVel * 8);
             config.player.stamina -= damage;
@@ -466,19 +487,34 @@
             const c = config[char];
 
             obj.position.x += c.vel.x;
+            obj.position.y += c.vel.y;
             obj.position.z += c.vel.z;
 
+            // Gravidade e Colisão com o Chão
+            if (obj.position.y > 0) {
+                c.vel.y -= 0.008;
+            } else if (!c.isFallen) {
+                if (c.vel.y < -0.02) {
+                    c.vel.y *= -0.4;
+                    obj.position.y = 0;
+                } else {
+                    c.vel.y = 0;
+                    obj.position.y = 0;
+                }
+            }
+
             // Atrito maior para parar o movimento lateral rápido (Simula peso)
-            c.vel.multiplyScalar(0.93);
+            c.vel.x *= 0.93;
+            c.vel.z *= 0.93;
 
             if (!c.isFallen) {
-                c.stamina -= (char === 'player' ? 0.035 : 0.05);
+                c.stamina -= (char === 'player' ? 0.008 : 0.012);
                 c.rotationSpeed = Math.max(0, (c.stamina / 100) * 1.6);
                 obj.rotation.y += c.rotationSpeed;
 
                 const limit = 60;
                 if (c.stamina < limit) {
-                    c.wobble += (limit - c.stamina) * 0.001;
+                    c.wobble += (limit - c.stamina) * 0.0003;
                 } else {
                     c.wobble *= 0.97;
                 }
@@ -488,7 +524,7 @@
                 obj.rotation.x = (c.vel.z * 1.1) + Math.sin(t) * c.wobble;
                 obj.rotation.z = (-c.vel.x * 1.1) + Math.cos(t) * c.wobble;
 
-                if (c.stamina <= 0 || c.wobble > 1.6) c.isFallen = true;
+                if (c.stamina <= 0 || c.wobble > 2.5) c.isFallen = true;
             } else {
                 obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, Math.PI/2.05, 0.04);
                 obj.position.y = THREE.MathUtils.lerp(obj.position.y, 0.18, 0.05);
@@ -499,6 +535,25 @@
 
         document.getElementById('player-stamina').style.width = Math.max(0, config.player.stamina) + '%';
         document.getElementById('enemy-stamina').style.width = Math.max(0, config.enemy.stamina) + '%';
+
+        // Atualizar UI flutuante
+        [player, enemy].forEach((obj, i) => {
+            if (!obj) return;
+            const char = i === 0 ? 'player' : 'enemy';
+            const ui = document.getElementById(char + '-ui');
+            if (ui) {
+                const vector = new THREE.Vector3();
+                obj.getWorldPosition(vector);
+                vector.y += 2.2;
+                vector.project(camera);
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+                ui.style.transform = `translate(-50%, -50%)`;
+                ui.style.left = x + 'px';
+                ui.style.top = y + 'px';
+                ui.style.display = gameStarted ? 'block' : 'none';
+            }
+        });
 
         if (!resultPending) checkGameOver();
 
