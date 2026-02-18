@@ -432,8 +432,8 @@
             config.enemy.vel.addScaledVector(forceDir, -impulseE);
 
             // Impulso vertical e efeito de chocalho (rattle)
-            config.player.vel.y += 0.08;
-            config.enemy.vel.y += 0.08;
+            config.player.vel.y += 0.04;
+            config.enemy.vel.y += 0.04;
             const rattle = 0.02;
             config.player.vel.x += (Math.random() - 0.5) * rattle;
             config.player.vel.z += (Math.random() - 0.5) * rattle;
@@ -492,7 +492,7 @@
 
             // Gravidade e Colisão com o Chão
             if (obj.position.y > 0) {
-                c.vel.y -= 0.008;
+                c.vel.y -= 0.015;
             } else if (!c.isFallen) {
                 if (c.vel.y < -0.02) {
                     c.vel.y *= -0.4;
