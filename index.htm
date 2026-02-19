@@ -605,9 +605,9 @@
             // Gravidade e Colisão com o Chão
             if (obj.position.y > currentGroundLevel) {
                 c.vel.y -= 0.02;
-            } else if (!c.isFallen) {
+            } else {
                 if (c.vel.y < -0.02) {
-                    c.vel.y *= -0.5; // Bounce amortecido
+                    c.vel.y *= (c.isFallen ? -0.3 : -0.5); // Bounce amortecido
                     obj.position.y = currentGroundLevel;
                 } else {
                     c.vel.y = 0;
@@ -616,8 +616,9 @@
             }
 
             // Atrito para parar o movimento lateral (Simula peso e inércia)
-            c.vel.x *= 0.96;
-            c.vel.z *= 0.96;
+            const friction = c.isFallen ? 0.98 : 0.96;
+            c.vel.x *= friction;
+            c.vel.z *= friction;
 
             if (!c.isFallen) {
                 c.stamina -= (char === 'player' ? 0.004 : 0.006);
@@ -643,8 +644,22 @@
 
                 if (c.stamina <= 0 || c.wobble > 1.2) c.isFallen = true;
             } else {
-                obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, Math.PI/2.05, 0.04);
-                obj.position.y = THREE.MathUtils.lerp(obj.position.y, currentGroundLevel, 0.1);
+                // Queda Dinâmica
+                c.rotationSpeed *= 0.96; // Desaceleração rápida da rotação
+                obj.rotation.y += c.rotationSpeed;
+
+                // Aumentar o wobble para simular a perda de equilíbrio total
+                c.wobble = THREE.MathUtils.lerp(c.wobble, 1.55, 0.05);
+
+                const t = Date.now() * 0.01;
+                // Transição suave para a precessão final de queda
+                const targetRotX = (c.vel.z * 1.1) + Math.sin(t) * c.wobble;
+                const targetRotZ = (-c.vel.x * 1.1) + Math.cos(t) * c.wobble;
+
+                obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, targetRotX, 0.1);
+                obj.rotation.z = THREE.MathUtils.lerp(obj.rotation.z, targetRotZ, 0.1);
+
+                // A posição Y é controlada pela colisão com o chão já calculada
             }
         });
 
