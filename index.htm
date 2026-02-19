@@ -164,7 +164,7 @@
     let resultPending = false;
     let sparks = [];
     let cameraShake = 0;
-    let gameEndTimer;
+    const CAMERA_OFFSET = new THREE.Vector3(0, 24, 22);
 
     let joystick = { x: 0, y: 0, active: false };
     const JOYSTICK_MAX_RADIUS = 50;
@@ -180,7 +180,6 @@
             rotationSpeed: 1.5,
             wobble: 0,
             isFallen: false,
-            groundLevel: 0,
             accel: 0.015, // Ainda mais lento e pesado
             mass: 5.0     // Massa dobrada
         },
@@ -191,7 +190,6 @@
             rotationSpeed: 1.5,
             wobble: 0,
             isFallen: false,
-            groundLevel: 0,
             accel: 0.007,
             color: 0xc0392b,
             mass: 5.0
@@ -486,29 +484,20 @@
     }
 
     function resetPositions() {
-        clearTimeout(gameEndTimer);
-        cameraShake = 0;
-        camera.position.set(0, 24, 22);
-        player.position.set(-6, 0, 0);
-        enemy.position.set(6, 0, 0);
+        player.position.set(-12, 0, 0);
+        enemy.position.set(12, 0, 0);
         player.rotation.set(0,0,0);
         enemy.rotation.set(0,0,0);
         config.player.vel.set(0,0,0);
         config.enemy.vel.set(0,0,0);
         config.player.stamina = 100;
         config.enemy.stamina = 100;
-        config.player.rotationSpeed = 1.5;
-        config.enemy.rotationSpeed = 1.5;
         config.player.isFallen = false;
         config.enemy.isFallen = false;
-        config.player.groundLevel = 0;
-        config.enemy.groundLevel = 0;
         config.player.wobble = 0;
         config.enemy.wobble = 0;
         gameOver = false;
         resultPending = false;
-        cameraShake = 0;
-        keys = {};
         document.getElementById('msg').style.display = 'none';
         sparks.forEach(s => scene.remove(s.mesh));
         sparks = [];
@@ -527,35 +516,37 @@
         if (dist < 3.2) {
             const forceDir = new THREE.Vector3().subVectors(player.position, enemy.position).normalize();
 
-            // Impacto baseado na velocidade relativa e na rotação dos peões
+            // Cálculo de impacto reduzido para empurrar pouco
             const relVel = new THREE.Vector3().subVectors(config.player.vel, config.enemy.vel).length();
-            const power = (relVel * 0.4) + (config.player.rotationSpeed + config.enemy.rotationSpeed) * 0.15;
 
-            // Inércia: Impulsos baseados na massa
-            config.player.vel.addScaledVector(forceDir, power / config.player.mass);
-            config.enemy.vel.addScaledVector(forceDir, -power / config.enemy.mass);
+            // Fator de empuxo reduzido drasticamente (0.03 em vez de valores mais altos)
+            const pushFactor = 0.03 + (relVel * 0.3);
+            const power = (config.player.rotationSpeed + config.enemy.rotationSpeed) * pushFactor;
 
-            // Impulso vertical e efeito de vibração (rattle) realistas
-            const verticalForce = 0.05 + (power * 0.2);
-            config.player.vel.y += verticalForce;
-            config.enemy.vel.y += verticalForce;
+            // Inércia: Divisão pela massa elevada
+            const impulseP = power / config.player.mass;
+            const impulseE = power / config.enemy.mass;
 
-            cameraShake = 0.2 + (power * 0.5);
+            config.player.vel.addScaledVector(forceDir, impulseP);
+            config.enemy.vel.addScaledVector(forceDir, -impulseE);
 
-            const rattle = 0.03 * relVel;
+            // Impulso vertical e efeito de chocalho (rattle)
+            config.player.vel.y += 0.06;
+            config.enemy.vel.y += 0.06;
+            cameraShake = 0.4;
+            const rattle = 0.02;
             config.player.vel.x += (Math.random() - 0.5) * rattle;
             config.player.vel.z += (Math.random() - 0.5) * rattle;
             config.enemy.vel.x += (Math.random() - 0.5) * rattle;
             config.enemy.vel.z += (Math.random() - 0.5) * rattle;
 
-            // Perda de stamina proporcional à força do impacto
-            const damage = (power * 12) + 2;
+            // A perda de estabilidade continua sendo o foco principal do combate
+            const damage = 2 + (relVel * 8);
             config.player.stamina -= damage;
-            config.enemy.stamina -= damage;
+            config.enemy.stamina -= damage * 1.1;
 
-            // O impacto afeta a estabilidade (cambaleamento)
-            config.player.wobble += power * 0.15;
-            config.enemy.wobble += power * 0.15;
+            config.player.wobble += 0.08;
+            config.enemy.wobble += 0.08;
 
             const mid = new THREE.Vector3().lerpVectors(player.position, enemy.position, 0.5);
             for(let i=0; i<8; i++) sparks.push(new Spark(mid));
@@ -567,7 +558,7 @@
         requestAnimationFrame(animate);
         sparks = sparks.filter(s => s.update());
 
-        if (!gameStarted) {
+        if (!gameStarted || (gameOver && !resultPending)) {
             renderer.render(scene, camera);
             return;
         }
@@ -600,20 +591,16 @@
             obj.position.y += c.vel.y;
             obj.position.z += c.vel.z;
 
-            // Gravidade e Colisão com o Chão (sempre ativa)
-            const tilt = Math.max(Math.abs(obj.rotation.x), Math.abs(obj.rotation.z));
-            const targetFloor = Math.sin(tilt) * 1.65;
-            c.groundLevel = THREE.MathUtils.lerp(c.groundLevel, targetFloor, 0.2);
-
-            if (obj.position.y > c.groundLevel) {
+            // Gravidade e Colisão com o Chão
+            if (obj.position.y > 0) {
                 c.vel.y -= 0.02;
-            } else {
+            } else if (!c.isFallen) {
                 if (c.vel.y < -0.02) {
                     c.vel.y *= -0.4;
-                    obj.position.y = c.groundLevel;
+                    obj.position.y = 0;
                 } else {
                     c.vel.y = 0;
-                    obj.position.y = c.groundLevel;
+                    obj.position.y = 0;
                 }
             }
 
@@ -622,40 +609,26 @@
             c.vel.z *= 0.93;
 
             if (!c.isFallen) {
-                // Diminuir velocidade de rotação gradualmente (fricção)
-                c.rotationSpeed *= 0.999;
-
-                // Stamina afeta a velocidade máxima possível
-                const maxSpeed = (c.stamina / 100) * 1.6;
-                if (c.rotationSpeed > maxSpeed) c.rotationSpeed = maxSpeed;
-
-                c.stamina -= (char === 'player' ? 0.005 : 0.008);
+                c.stamina -= (char === 'player' ? 0.008 : 0.012);
+                c.rotationSpeed = Math.max(0, (c.stamina / 100) * 1.6);
                 obj.rotation.y += c.rotationSpeed;
 
-                // Física de cambaleamento: precessão realista quando a velocidade cai
-                // Quanto menor a velocidade, maior o desequilíbrio (wobble)
-                const targetWobble = Math.max(0, (1.2 - c.rotationSpeed) * 0.5);
-                c.wobble = THREE.MathUtils.lerp(c.wobble, targetWobble, 0.05);
-
-                const t = Date.now() * 0.01;
-                // Frequência de precessão aumenta quando a velocidade diminui (efeito físico real)
-                const pFreq = 1.5 + (1.2 - c.rotationSpeed) * 4.0;
-
-                obj.rotation.x = (c.vel.z * 0.5) + Math.sin(t * pFreq) * c.wobble;
-                obj.rotation.z = (-c.vel.x * 0.5) + Math.cos(t * pFreq) * c.wobble;
-
-                // Peão cai se a velocidade for muito baixa ou o cambaleamento muito alto
-                if (c.rotationSpeed < 0.25 || c.wobble > 1.4) {
-                    c.isFallen = true;
-                    c.vel.set(0, 0, 0);
+                const limit = 60;
+                if (c.stamina < limit) {
+                    c.wobble += (limit - c.stamina) * 0.0003;
+                } else {
+                    c.wobble *= 0.97;
                 }
+                c.wobble *= 0.995;
+
+                const t = Date.now() * 0.008;
+                obj.rotation.x = (c.vel.z * 1.1) + Math.sin(t) * c.wobble;
+                obj.rotation.z = (-c.vel.x * 1.1) + Math.cos(t) * c.wobble;
+
+                if (c.stamina <= 0 || c.wobble > 2.5) c.isFallen = true;
             } else {
-                // Falling physics: avoid ground clipping
-                // The ring has a radius of 1.65, so when lying flat, Y should be 1.65
-                obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, Math.PI/2, 0.05);
-                // Reduce lateral movement when fallen
-                c.vel.x *= 0.9;
-                c.vel.z *= 0.9;
+                obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, Math.PI/2.05, 0.04);
+                obj.position.y = THREE.MathUtils.lerp(obj.position.y, 0.18, 0.05);
             }
         });
 
@@ -723,7 +696,6 @@
     }
 
     function checkGameOver() {
-        if (gameOver) return;
         const pDist = new THREE.Vector2(player.position.x, player.position.z).length();
         const eDist = new THREE.Vector2(enemy.position.x, enemy.position.z).length();
 
@@ -735,15 +707,15 @@
 
         if (status !== "") {
             resultPending = true;
-            gameOver = true;
             setTimeout(() => {
+                gameOver = true;
                 const win = status.includes("RIVAL");
                 if (win) SoundManager.playWin(); else SoundManager.playLoss();
                 const st = document.getElementById('status-text');
                 st.innerHTML = `<h2>${win ? 'VITÓRIA' : 'DERROTA'}</h2><p>${status}</p>`;
                 st.style.color = win ? "#2ecc71" : "#e74c3c";
                 document.getElementById('msg').style.display = 'flex';
-                // resultPending stays true until resetPositions()
+                resultPending = false;
             }, 1500);
         }
     }
