@@ -320,7 +320,7 @@
 
     function init() {
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x020202);
+        scene.background = new THREE.Color(0x87CEEB);
 
         camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 24, 22);
@@ -335,21 +335,44 @@
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        const light = new THREE.SpotLight(0xffffff, 1.2);
-        light.position.set(10, 40, 20);
-        light.castShadow = true;
-        scene.add(light);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-        // Chão amplo
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        sunLight.position.set(10, 50, 10);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.left = -50;
+        sunLight.shadow.camera.right = 50;
+        sunLight.shadow.camera.top = 50;
+        sunLight.shadow.camera.bottom = -50;
+        scene.add(sunLight);
+
+        const loader = new THREE.TextureLoader();
+
+        // Chão amplo (Terra)
+        const dirtTex = loader.load("https://dl.dropbox.com/scl/fi/gdiu7zb9234a8jm68z7f3/textura-de-terra3.png?rlkey=li8ncb3e8px530q9kjuu6t7e2&st=jeg9nzvl&dl=0");
+        dirtTex.wrapS = dirtTex.wrapT = THREE.RepeatWrapping;
+        dirtTex.repeat.set(80, 80);
+
         const floorGeo = new THREE.PlaneGeometry(1000, 1000);
-        const floorMat = new THREE.MeshPhongMaterial({ color: 0x0a0a0a, shininess: 5 });
+        const floorMat = new THREE.MeshPhongMaterial({ map: dirtTex, shininess: 5 });
         const floor = new THREE.Mesh(floorGeo, floorMat);
         floor.rotation.x = -Math.PI/2;
         floor.receiveShadow = true;
         scene.add(floor);
 
-        // Círculo Vermelho (Arena)
+        // Arena (Cimento Queimado)
+        const cementTex = loader.load("https://dl.dropbox.com/scl/fi/gh66sugd65o7bppoza6iq/textura-de-cimento-queimado.png?rlkey=mgc0pcnhhd8mjbidp6xfbhood&st=vy13hxmc&dl=0");
+        const arenaFloorGeo = new THREE.CircleGeometry(ARENA_RADIUS, 64);
+        const arenaFloorMat = new THREE.MeshPhongMaterial({ map: cementTex, shininess: 10 });
+        const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
+        arenaFloor.rotation.x = -Math.PI/2;
+        arenaFloor.position.y = 0.01;
+        arenaFloor.receiveShadow = true;
+        scene.add(arenaFloor);
+
+        // Círculo Vermelho (Arena Border)
         const ringGeo = new THREE.RingGeometry(ARENA_RADIUS - 0.08, ARENA_RADIUS + 0.08, 128);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide });
         const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -768,7 +791,7 @@
                 st.style.color = win ? "#2ecc71" : "#e74c3c";
                 document.getElementById('msg').style.display = 'flex';
                 resultPending = false;
-            }, 1500);
+            }, 2000);
         }
     }
 
