@@ -164,6 +164,7 @@
     let resultPending = false;
     let sparks = [];
     let cameraShake = 0;
+    let cameraZoom = 1.0;
     const CAMERA_OFFSET = new THREE.Vector3(0, 24, 22);
 
     let joystick = { x: 0, y: 0, active: false };
@@ -360,6 +361,11 @@
         window.addEventListener('keyup', e => keys[e.key] = false);
 
         initJoystick();
+
+        window.addEventListener('wheel', (e) => {
+            cameraZoom += e.deltaY * 0.001;
+            cameraZoom = THREE.MathUtils.clamp(cameraZoom, 0.5, 2.5);
+        }, { passive: true });
 
         animate();
     }
@@ -597,10 +603,24 @@
             obj.position.y += c.vel.y;
             obj.position.z += c.vel.z;
 
-            // Cálculo do nível do chão dinâmico para evitar clipping
+            // Cálculo do nível do chão dinâmico para evitar clipping de todo o corpo
             const worldUp = new THREE.Vector3(0, 1, 0).applyQuaternion(obj.quaternion);
             const upY = THREE.MathUtils.clamp(worldUp.y, -1, 1);
-            const currentGroundLevel = Math.max(0, RING_RADIUS * Math.sqrt(1 - upY * upY) - RING_HEIGHT * upY);
+            const sinTheta = Math.sqrt(1 - upY * upY);
+            const cosTheta = upY;
+
+            // Pontos críticos: bordas do anel e o topo do peão
+            const collisionPoints = [
+                { r: 1.65, h: 0.8 },   // Base do anel
+                { r: 1.65, h: 1.2 },   // Topo do anel
+                { r: 0.7,  h: 1.325 }  // Ponta superior
+            ];
+
+            let currentGroundLevel = 0;
+            collisionPoints.forEach(p => {
+                const level = p.r * sinTheta - p.h * cosTheta;
+                if (level > currentGroundLevel) currentGroundLevel = level;
+            });
 
             // Gravidade e Colisão com o Chão
             if (obj.position.y > currentGroundLevel) {
@@ -710,7 +730,8 @@
 
         // Update Camera to follow player
         if (player) {
-            camera.position.copy(player.position).add(CAMERA_OFFSET);
+            const dynamicOffset = CAMERA_OFFSET.clone().multiplyScalar(cameraZoom);
+            camera.position.copy(player.position).add(dynamicOffset);
 
             // Camera Shake relative to follow position
             if (cameraShake > 0) {
