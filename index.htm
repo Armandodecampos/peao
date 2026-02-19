@@ -170,6 +170,8 @@
     const JOYSTICK_MAX_RADIUS = 50;
 
     const ARENA_RADIUS = 20;
+    const RING_RADIUS = 1.65;
+    const RING_HEIGHT = 1.0;
 
     // Configurações de física para peões pesados com pouco empuxo
     const config = {
@@ -519,8 +521,8 @@
             // Cálculo de impacto reduzido para empurrar pouco
             const relVel = new THREE.Vector3().subVectors(config.player.vel, config.enemy.vel).length();
 
-            // Fator de empuxo reduzido drasticamente (0.03 em vez de valores mais altos)
-            const pushFactor = 0.03 + (relVel * 0.3);
+            // Fator de empuxo (0.05 para um impacto mais sólido)
+            const pushFactor = 0.05 + (relVel * 0.3);
             const power = (config.player.rotationSpeed + config.enemy.rotationSpeed) * pushFactor;
 
             // Inércia: Divisão pela massa elevada
@@ -541,7 +543,7 @@
             config.enemy.vel.z += (Math.random() - 0.5) * rattle;
 
             // A perda de estabilidade continua sendo o foco principal do combate
-            const damage = 2 + (relVel * 8);
+            const damage = 1 + (relVel * 4);
             config.player.stamina -= damage;
             config.enemy.stamina -= damage * 1.1;
 
@@ -591,26 +593,31 @@
             obj.position.y += c.vel.y;
             obj.position.z += c.vel.z;
 
+            // Cálculo do nível do chão dinâmico para evitar clipping
+            const worldUp = new THREE.Vector3(0, 1, 0).applyQuaternion(obj.quaternion);
+            const upY = THREE.MathUtils.clamp(worldUp.y, -1, 1);
+            const currentGroundLevel = Math.max(0, RING_RADIUS * Math.sqrt(1 - upY * upY) - RING_HEIGHT * upY);
+
             // Gravidade e Colisão com o Chão
-            if (obj.position.y > 0) {
+            if (obj.position.y > currentGroundLevel) {
                 c.vel.y -= 0.02;
             } else if (!c.isFallen) {
                 if (c.vel.y < -0.02) {
-                    c.vel.y *= -0.4;
-                    obj.position.y = 0;
+                    c.vel.y *= -0.5; // Bounce amortecido
+                    obj.position.y = currentGroundLevel;
                 } else {
                     c.vel.y = 0;
-                    obj.position.y = 0;
+                    obj.position.y = currentGroundLevel;
                 }
             }
 
-            // Atrito maior para parar o movimento lateral rápido (Simula peso)
-            c.vel.x *= 0.93;
-            c.vel.z *= 0.93;
+            // Atrito para parar o movimento lateral (Simula peso e inércia)
+            c.vel.x *= 0.96;
+            c.vel.z *= 0.96;
 
             if (!c.isFallen) {
-                c.stamina -= (char === 'player' ? 0.008 : 0.012);
-                c.rotationSpeed = Math.max(0, (c.stamina / 100) * 1.6);
+                c.stamina -= (char === 'player' ? 0.004 : 0.006);
+                c.rotationSpeed = Math.max(0, (c.stamina / 100) * 3.0);
                 obj.rotation.y += c.rotationSpeed;
 
                 const limit = 60;
@@ -628,7 +635,7 @@
                 if (c.stamina <= 0 || c.wobble > 2.5) c.isFallen = true;
             } else {
                 obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, Math.PI/2.05, 0.04);
-                obj.position.y = THREE.MathUtils.lerp(obj.position.y, 0.18, 0.05);
+                obj.position.y = THREE.MathUtils.lerp(obj.position.y, currentGroundLevel, 0.1);
             }
         });
 
