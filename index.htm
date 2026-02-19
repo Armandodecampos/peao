@@ -180,6 +180,7 @@
             rotationSpeed: 1.5,
             wobble: 0,
             isFallen: false,
+            groundLevel: 0,
             accel: 0.015, // Ainda mais lento e pesado
             mass: 5.0     // Massa dobrada
         },
@@ -190,6 +191,7 @@
             rotationSpeed: 1.5,
             wobble: 0,
             isFallen: false,
+            groundLevel: 0,
             accel: 0.007,
             color: 0xc0392b,
             mass: 5.0
@@ -494,6 +496,8 @@
         config.enemy.stamina = 100;
         config.player.isFallen = false;
         config.enemy.isFallen = false;
+        config.player.groundLevel = 0;
+        config.enemy.groundLevel = 0;
         config.player.wobble = 0;
         config.enemy.wobble = 0;
         gameOver = false;
@@ -589,16 +593,19 @@
             obj.position.y += c.vel.y;
             obj.position.z += c.vel.z;
 
-            // Gravidade e Colisão com o Chão
-            if (obj.position.y > (c.isFallen ? 1.65 : 0)) {
+            // Gravidade e Colisão com o Chão (sempre ativa)
+            const targetFloor = c.isFallen ? 1.65 : 0;
+            c.groundLevel = THREE.MathUtils.lerp(c.groundLevel, targetFloor, 0.05);
+
+            if (obj.position.y > c.groundLevel) {
                 c.vel.y -= 0.02;
-            } else if (!c.isFallen) {
+            } else {
                 if (c.vel.y < -0.02) {
                     c.vel.y *= -0.4;
-                    obj.position.y = 0;
+                    obj.position.y = c.groundLevel;
                 } else {
                     c.vel.y = 0;
-                    obj.position.y = 0;
+                    obj.position.y = c.groundLevel;
                 }
             }
 
@@ -628,7 +635,6 @@
                 // Falling physics: avoid ground clipping
                 // The ring has a radius of 1.65, so when lying flat, Y should be 1.65
                 obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, Math.PI/2, 0.05);
-                obj.position.y = THREE.MathUtils.lerp(obj.position.y, 1.65, 0.05);
                 // Reduce lateral movement when fallen
                 c.vel.x *= 0.9;
                 c.vel.z *= 0.9;
@@ -718,7 +724,7 @@
                 st.innerHTML = `<h2>${win ? 'VITÓRIA' : 'DERROTA'}</h2><p>${status}</p>`;
                 st.style.color = win ? "#2ecc71" : "#e74c3c";
                 document.getElementById('msg').style.display = 'flex';
-                resultPending = false;
+                // resultPending stays true until resetPositions()
             }, 1500);
         }
     }
