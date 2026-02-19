@@ -164,11 +164,12 @@
     let resultPending = false;
     let sparks = [];
     let cameraShake = 0;
+    const CAMERA_OFFSET = new THREE.Vector3(0, 24, 22);
 
     let joystick = { x: 0, y: 0, active: false };
     const JOYSTICK_MAX_RADIUS = 50;
 
-    const ARENA_RADIUS = 10;
+    const ARENA_RADIUS = 20;
 
     // Configurações de física para peões pesados com pouco empuxo
     const config = {
@@ -198,6 +199,101 @@
 
     const sparkGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
     const sparkMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+
+    const SoundManager = {
+        ctx: null,
+        mainGain: null,
+        spinOsc: null,
+        spinGain: null,
+
+        init() {
+            if (this.ctx) {
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                return;
+            }
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.mainGain = this.ctx.createGain();
+            this.mainGain.gain.value = 0.3;
+            this.mainGain.connect(this.ctx.destination);
+
+            this.spinOsc = this.ctx.createOscillator();
+            this.spinOsc.type = 'sawtooth';
+            this.spinGain = this.ctx.createGain();
+            this.spinGain.gain.value = 0;
+            this.spinOsc.connect(this.spinGain);
+            this.spinGain.connect(this.mainGain);
+            this.spinOsc.start();
+        },
+
+        playHit() {
+            if (!this.ctx) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(this.mainGain);
+            osc.start();
+            osc.stop(this.ctx.currentTime + 0.1);
+        },
+
+        playStart() {
+            if (!this.ctx) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+            osc.connect(gain);
+            gain.connect(this.mainGain);
+            osc.start();
+            osc.stop(this.ctx.currentTime + 0.5);
+        },
+
+        playWin() {
+            if (!this.ctx) return;
+            [440, 554, 659].forEach((f, i) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.frequency.value = f;
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime + i*0.1);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + i*0.1 + 0.3);
+                osc.connect(gain);
+                gain.connect(this.mainGain);
+                osc.start(this.ctx.currentTime + i*0.1);
+                osc.stop(this.ctx.currentTime + i*0.1 + 0.3);
+            });
+        },
+
+        playLoss() {
+            if (!this.ctx) return;
+            [300, 250, 200].forEach((f, i) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.frequency.value = f;
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime + i*0.15);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + i*0.15 + 0.5);
+                osc.connect(gain);
+                gain.connect(this.mainGain);
+                osc.start(this.ctx.currentTime + i*0.15);
+                osc.stop(this.ctx.currentTime + i*0.15 + 0.5);
+            });
+        },
+
+        updateSpin(speed) {
+            if (!this.ctx || !this.spinOsc) return;
+            this.spinOsc.frequency.setTargetAtTime(50 + speed * 100, this.ctx.currentTime, 0.1);
+            this.spinGain.gain.setTargetAtTime(Math.min(0.1, speed * 0.05), this.ctx.currentTime, 0.1);
+        },
+
+        stopSpin() {
+            if (this.spinGain) this.spinGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+        }
+    };
 
     class Spark {
         constructor(position) {
@@ -362,6 +458,8 @@
     }
 
     function startGame() {
+        SoundManager.init();
+        SoundManager.playStart();
         if(player) scene.remove(player);
         if(enemy) scene.remove(enemy);
 
@@ -386,8 +484,8 @@
     }
 
     function resetPositions() {
-        player.position.set(-6, 0, 0);
-        enemy.position.set(6, 0, 0);
+        player.position.set(-12, 0, 0);
+        enemy.position.set(12, 0, 0);
         player.rotation.set(0,0,0);
         enemy.rotation.set(0,0,0);
         config.player.vel.set(0,0,0);
@@ -452,6 +550,7 @@
 
             const mid = new THREE.Vector3().lerpVectors(player.position, enemy.position, 0.5);
             for(let i=0; i<8; i++) sparks.push(new Spark(mid));
+            SoundManager.playHit();
         }
     }
 
@@ -552,6 +651,12 @@
         eBar.style.boxShadow = eStamina < 30 ? '0 0 15px #ff3300' : '0 0 10px #ff416c';
 
         // Atualizar UI flutuante
+        if (config.player && !config.player.isFallen) {
+            SoundManager.updateSpin(config.player.rotationSpeed);
+        } else {
+            SoundManager.stopSpin();
+        }
+
         [player, enemy].forEach((obj, i) => {
             if (!obj) return;
             const char = i === 0 ? 'player' : 'enemy';
@@ -572,15 +677,19 @@
 
         if (!resultPending) checkGameOver();
 
-        // Camera Shake
-        if (cameraShake > 0) {
-            camera.position.x += (Math.random() - 0.5) * cameraShake;
-            camera.position.y += (Math.random() - 0.5) * cameraShake;
-            cameraShake *= 0.9;
-            if (cameraShake < 0.01) {
-                cameraShake = 0;
-                camera.position.set(0, 24, 22);
+        // Update Camera to follow player
+        if (player) {
+            camera.position.copy(player.position).add(CAMERA_OFFSET);
+
+            // Camera Shake relative to follow position
+            if (cameraShake > 0) {
+                camera.position.x += (Math.random() - 0.5) * cameraShake;
+                camera.position.y += (Math.random() - 0.5) * cameraShake;
+                cameraShake *= 0.9;
+                if (cameraShake < 0.01) cameraShake = 0;
             }
+
+            camera.lookAt(player.position);
         }
 
         renderer.render(scene, camera);
@@ -601,6 +710,7 @@
             setTimeout(() => {
                 gameOver = true;
                 const win = status.includes("RIVAL");
+                if (win) SoundManager.playWin(); else SoundManager.playLoss();
                 const st = document.getElementById('status-text');
                 st.innerHTML = `<h2>${win ? 'VITÓRIA' : 'DERROTA'}</h2><p>${status}</p>`;
                 st.style.color = win ? "#2ecc71" : "#e74c3c";
