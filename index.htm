@@ -494,6 +494,8 @@
         config.enemy.vel.set(0,0,0);
         config.player.stamina = 100;
         config.enemy.stamina = 100;
+        config.player.rotationSpeed = 1.5;
+        config.enemy.rotationSpeed = 1.5;
         config.player.isFallen = false;
         config.enemy.isFallen = false;
         config.player.groundLevel = 0;
@@ -502,6 +504,8 @@
         config.enemy.wobble = 0;
         gameOver = false;
         resultPending = false;
+        cameraShake = 0;
+        keys = {};
         document.getElementById('msg').style.display = 'none';
         sparks.forEach(s => scene.remove(s.mesh));
         sparks = [];
@@ -594,8 +598,9 @@
             obj.position.z += c.vel.z;
 
             // Gravidade e Colisão com o Chão (sempre ativa)
-            const targetFloor = c.isFallen ? 1.65 : 0;
-            c.groundLevel = THREE.MathUtils.lerp(c.groundLevel, targetFloor, 0.05);
+            const tilt = Math.max(Math.abs(obj.rotation.x), Math.abs(obj.rotation.z));
+            const targetFloor = Math.sin(tilt) * 1.65;
+            c.groundLevel = THREE.MathUtils.lerp(c.groundLevel, targetFloor, 0.2);
 
             if (obj.position.y > c.groundLevel) {
                 c.vel.y -= 0.02;
@@ -614,20 +619,30 @@
             c.vel.z *= 0.93;
 
             if (!c.isFallen) {
-                c.stamina -= (char === 'player' ? 0.008 : 0.012);
-                c.rotationSpeed = Math.max(0, (c.stamina / 100) * 1.6);
+                // Diminuir velocidade de rotação gradualmente (fricção)
+                c.rotationSpeed *= 0.999;
+
+                // Stamina afeta a velocidade máxima possível
+                const maxSpeed = (c.stamina / 100) * 1.6;
+                if (c.rotationSpeed > maxSpeed) c.rotationSpeed = maxSpeed;
+
+                c.stamina -= (char === 'player' ? 0.005 : 0.008);
                 obj.rotation.y += c.rotationSpeed;
 
-                // Wobble physics: more realistic precession as speed drops
-                const targetWobble = Math.max(0, (0.8 - c.rotationSpeed) * 0.4);
-                c.wobble = THREE.MathUtils.lerp(c.wobble, targetWobble, 0.1);
+                // Física de cambaleamento: precessão realista quando a velocidade cai
+                // Quanto menor a velocidade, maior o desequilíbrio (wobble)
+                const targetWobble = Math.max(0, (1.2 - c.rotationSpeed) * 0.5);
+                c.wobble = THREE.MathUtils.lerp(c.wobble, targetWobble, 0.05);
 
                 const t = Date.now() * 0.01;
-                const pFreq = 2.0 + c.rotationSpeed * 3.0;
-                obj.rotation.x = (c.vel.z * 1.1) + Math.sin(t * pFreq) * c.wobble;
-                obj.rotation.z = (-c.vel.x * 1.1) + Math.cos(t * pFreq) * c.wobble;
+                // Frequência de precessão aumenta quando a velocidade diminui (efeito físico real)
+                const pFreq = 1.5 + (1.2 - c.rotationSpeed) * 4.0;
 
-                if (c.stamina <= 0 || c.wobble > 2.5) {
+                obj.rotation.x = (c.vel.z * 0.5) + Math.sin(t * pFreq) * c.wobble;
+                obj.rotation.z = (-c.vel.x * 0.5) + Math.cos(t * pFreq) * c.wobble;
+
+                // Peão cai se a velocidade for muito baixa ou o cambaleamento muito alto
+                if (c.rotationSpeed < 0.25 || c.wobble > 1.4) {
                     c.isFallen = true;
                     c.vel.set(0, 0, 0);
                 }
@@ -705,6 +720,7 @@
     }
 
     function checkGameOver() {
+        if (gameOver) return;
         const pDist = new THREE.Vector2(player.position.x, player.position.z).length();
         const eDist = new THREE.Vector2(enemy.position.x, enemy.position.z).length();
 
@@ -716,8 +732,8 @@
 
         if (status !== "") {
             resultPending = true;
+            gameOver = true;
             setTimeout(() => {
-                gameOver = true;
                 const win = status.includes("RIVAL");
                 if (win) SoundManager.playWin(); else SoundManager.playLoss();
                 const st = document.getElementById('status-text');
