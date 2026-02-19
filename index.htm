@@ -164,7 +164,7 @@
     let resultPending = false;
     let sparks = [];
     let cameraShake = 0;
-    const CAMERA_OFFSET = new THREE.Vector3(0, 24, 22);
+    let gameEndTimer;
 
     let joystick = { x: 0, y: 0, active: false };
     const JOYSTICK_MAX_RADIUS = 50;
@@ -486,8 +486,11 @@
     }
 
     function resetPositions() {
-        player.position.set(-12, 0, 0);
-        enemy.position.set(12, 0, 0);
+        clearTimeout(gameEndTimer);
+        cameraShake = 0;
+        camera.position.set(0, 24, 22);
+        player.position.set(-6, 0, 0);
+        enemy.position.set(6, 0, 0);
         player.rotation.set(0,0,0);
         enemy.rotation.set(0,0,0);
         config.player.vel.set(0,0,0);
@@ -728,8 +731,8 @@
 
         if (status !== "") {
             resultPending = true;
-            gameOver = true;
-            setTimeout(() => {
+            gameEndTimer = setTimeout(() => {
+                gameOver = true;
                 const win = status.includes("RIVAL");
                 if (win) SoundManager.playWin(); else SoundManager.playLoss();
                 const st = document.getElementById('status-text');
