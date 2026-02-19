@@ -497,6 +497,8 @@
         config.enemy.vel.set(0,0,0);
         config.player.stamina = 100;
         config.enemy.stamina = 100;
+        config.player.rotationSpeed = 1.5;
+        config.enemy.rotationSpeed = 1.5;
         config.player.isFallen = false;
         config.enemy.isFallen = false;
         config.player.groundLevel = 0;
@@ -505,6 +507,8 @@
         config.enemy.wobble = 0;
         gameOver = false;
         resultPending = false;
+        cameraShake = 0;
+        keys = {};
         document.getElementById('msg').style.display = 'none';
         sparks.forEach(s => scene.remove(s.mesh));
         sparks = [];
@@ -731,8 +735,8 @@
 
         if (status !== "") {
             resultPending = true;
-            gameEndTimer = setTimeout(() => {
-                gameOver = true;
+            gameOver = true;
+            setTimeout(() => {
                 const win = status.includes("RIVAL");
                 if (win) SoundManager.playWin(); else SoundManager.playLoss();
                 const st = document.getElementById('status-text');
