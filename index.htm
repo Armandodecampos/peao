@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Battle Blades Racing - Corrida de Peões</title>
+    <title>Battle Blades 3D - Arena de Batalha</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         html, body {
@@ -65,12 +65,13 @@
         }
 
         #start-screen h1 {
-            font-size: 4rem;
+            font-size: 3.5rem;
             margin: 0;
             color: #f1c40f;
             text-transform: uppercase;
-            letter-spacing: 10px;
+            letter-spacing: 5px;
             text-shadow: 0 0 20px rgba(241, 196, 15, 0.5);
+            text-align: center;
         }
 
         #loading-screen {
@@ -177,8 +178,8 @@
 <div id="countdown-overlay"></div>
 
 <div id="start-screen" class="overlay" style="display: none;">
-    <h1>BATTLE RACING</h1>
-    <p>ESCOLHA SUA COR E FORMATO</p>
+    <h1>BATTLE BLADES 3D</h1>
+    <p style="letter-spacing: 2px;">ARENA DE BATALHA</p>
     <div style="margin: 20px 0; display: flex; flex-direction: column; align-items: center; gap: 15px;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <label style="font-weight: bold; letter-spacing: 2px;">COR:</label>
@@ -194,14 +195,13 @@
             </select>
         </div>
     </div>
-    <button class="main-btn" onclick="startGame()">INICIAR CORRIDA</button>
+    <button class="main-btn" onclick="startGame()">INICIAR BATALHA</button>
 </div>
 
 <div id="ui">
     <div id="player-ui" class="floating-ui">
         <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">VOCÊ</div>
         <div class="stat-bar"><div id="player-stamina" class="fill"></div></div>
-        <div id="player-laps" style="font-size: 12px; font-weight: bold; color: #f1c40f;">VOLTA: 0/3</div>
     </div>
     <div id="enemy-ui" class="floating-ui">
         <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">RIVAL</div>
@@ -225,7 +225,6 @@
     let keys = {};
     let gameOver = false;
     let gameStarted = false;
-    let finishers = [];
     let raceActive = false;
     let resultPending = false;
     let sparks = [];
@@ -236,15 +235,11 @@
     let joystick = { x: 0, y: 0, active: false };
     const JOYSTICK_MAX_RADIUS = 50;
 
-    const TRACK_INNER_RADIUS = 80;
-    const TRACK_OUTER_RADIUS = 130;
-    const TRACK_SCALE_X = 1.8;
-    const TRACK_SCALE_Z = 1.0;
-    const ARENA_RADIUS = TRACK_OUTER_RADIUS; // Para compatibilidade
+    const ARENA_RADIUS = 100;
     const RING_RADIUS = 1.65;
     const RING_HEIGHT = 1.0;
 
-    // Configurações de física para peões de corrida
+    // Configurações de física para peões
     let playerConfig = {
         vel: new THREE.Vector3(0, 0, 0),
         stamina: 100,
@@ -254,10 +249,6 @@
         isFallen: false,
         accel: 0.02,
         mass: 5.0,
-        laps: 0,
-        angle: 0,
-        finished: false,
-        finishRank: 0,
         color: 0x2980b9
     };
 
@@ -438,59 +429,26 @@
         floor.receiveShadow = true;
         scene.add(floor);
 
-        // Pista de Corrida (Cimento Queimado)
+        // Arena de Batalha (Cimento Queimado)
         const cementTex = loader.load("https://dl.dropbox.com/scl/fi/gh66sugd65o7bppoza6iq/textura-de-cimento-queimado.png?rlkey=mgc0pcnhhd8mjbidp6xfbhood&st=vy13hxmc&dl=1");
         cementTex.wrapS = cementTex.wrapT = THREE.RepeatWrapping;
-        cementTex.repeat.set(10, 2);
+        cementTex.repeat.set(10, 10);
 
-        const arenaFloorGeo = new THREE.RingGeometry(TRACK_INNER_RADIUS, TRACK_OUTER_RADIUS, 128);
-        const arenaFloorMat = new THREE.MeshPhongMaterial({ map: cementTex, shininess: 10, side: THREE.DoubleSide });
+        const arenaFloorGeo = new THREE.CircleGeometry(ARENA_RADIUS, 128);
+        const arenaFloorMat = new THREE.MeshPhongMaterial({ map: cementTex, shininess: 10 });
         const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
         arenaFloor.rotation.x = -Math.PI/2;
-        arenaFloor.scale.set(TRACK_SCALE_X, TRACK_SCALE_Z, 1);
         arenaFloor.position.y = 0.5;
         arenaFloor.receiveShadow = true;
         scene.add(arenaFloor);
 
-        // Bordas da Pista
-        const innerRingGeo = new THREE.RingGeometry(TRACK_INNER_RADIUS - 0.2, TRACK_INNER_RADIUS + 0.2, 128);
-        const outerRingGeo = new THREE.RingGeometry(TRACK_OUTER_RADIUS - 0.2, TRACK_OUTER_RADIUS + 0.2, 128);
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide });
-
-        const innerRing = new THREE.Mesh(innerRingGeo, ringMat);
-        innerRing.rotation.x = -Math.PI/2;
-        innerRing.scale.set(TRACK_SCALE_X, TRACK_SCALE_Z, 1);
-        innerRing.position.y = 0.51;
-        scene.add(innerRing);
-
-        const outerRing = new THREE.Mesh(outerRingGeo, ringMat);
-        outerRing.rotation.x = -Math.PI/2;
-        outerRing.scale.set(TRACK_SCALE_X, TRACK_SCALE_Z, 1);
-        outerRing.position.y = 0.51;
-        scene.add(outerRing);
-
-        // Paredes da Pista
+        // Paredes da Arena
         const wallMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide });
 
-        const innerWallGeo = new THREE.CylinderGeometry(TRACK_INNER_RADIUS, TRACK_INNER_RADIUS, 4, 128, 1, true);
-        const innerWall = new THREE.Mesh(innerWallGeo, wallMat);
-        innerWall.scale.set(TRACK_SCALE_X, 1, 1);
-        innerWall.position.y = 2.5; // Do y=0.5 até y=4.5
-        scene.add(innerWall);
-
-        const outerWallGeo = new THREE.CylinderGeometry(TRACK_OUTER_RADIUS, TRACK_OUTER_RADIUS, 4, 128, 1, true);
+        const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS, 5, 128, 1, true);
         const outerWall = new THREE.Mesh(outerWallGeo, wallMat);
-        outerWall.scale.set(TRACK_SCALE_X, 1, 1);
-        outerWall.position.y = 2.5;
+        outerWall.position.y = 3.0;
         scene.add(outerWall);
-
-        // Linha de Largada
-        const startLineGeo = new THREE.PlaneGeometry(TRACK_OUTER_RADIUS - TRACK_INNER_RADIUS, 3);
-        const startLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-        const startLine = new THREE.Mesh(startLineGeo, startLineMat);
-        startLine.rotation.x = -Math.PI/2;
-        startLine.position.set(((TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS)/2) * TRACK_SCALE_X, 0.52, 0);
-        scene.add(startLine);
 
         window.addEventListener('keydown', e => keys[e.key] = true);
         window.addEventListener('keyup', e => keys[e.key] = false);
@@ -633,12 +591,8 @@
                 wobble: 0,
                 hitWobble: 0,
                 isFallen: false,
-                accel: 0.015 + Math.random() * 0.01,
+                accel: 0.012 + Math.random() * 0.008,
                 mass: 5.0,
-                laps: 0,
-                angle: 0,
-                finished: false,
-                finishRank: 0,
                 color: enemyColors[i]
             });
         }
@@ -676,26 +630,19 @@
     }
 
     function resetPositions() {
-        finishers = [];
-        const midRadius = (TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS) / 2;
-        const startX = midRadius * TRACK_SCALE_X;
+        const spawnDist = ARENA_RADIUS * 0.6;
 
-        player.position.set(startX, 0, -5);
+        player.position.set(spawnDist, 0, 0);
         player.rotation.set(0,0,0);
         playerConfig.vel.set(0,0,0);
         playerConfig.stamina = 100;
         playerConfig.isFallen = false;
         playerConfig.wobble = 0;
         playerConfig.hitWobble = 0;
-        playerConfig.laps = 0;
-        playerConfig.angle = 0;
-        playerConfig.lastAngle = undefined;
-        playerConfig.finished = false;
-        playerConfig.finishRank = 0;
 
         enemies.forEach((e, i) => {
-            const offset = (i + 1) * 5;
-            e.position.set(startX, 0, offset);
+            const angle = ((i + 1) / (enemies.length + 1)) * Math.PI * 2;
+            e.position.set(Math.cos(angle) * spawnDist, 0, Math.sin(angle) * spawnDist);
             e.rotation.set(0,0,0);
             const c = enemyConfigs[i];
             c.vel.set(0,0,0);
@@ -703,11 +650,6 @@
             c.isFallen = false;
             c.wobble = 0;
             c.hitWobble = 0;
-            c.laps = 0;
-            c.angle = 0;
-            c.lastAngle = undefined;
-            c.finished = false;
-            c.finishRank = 0;
         });
 
         gameOver = false;
@@ -775,36 +717,39 @@
             // Movimento do Jogador
             if (!playerConfig.isFallen) {
                 const a = playerConfig.accel;
-                // Cálculo de tangente (frente) e radial (lados) baseado na elipse
-                const tangent = new THREE.Vector3(-player.position.z * TRACK_SCALE_X, 0, player.position.x / TRACK_SCALE_X).normalize();
-                const radial = new THREE.Vector3(player.position.x / (TRACK_SCALE_X * TRACK_SCALE_X), 0, player.position.z).normalize();
 
-                if (keys['ArrowUp'] || keys['w']) playerConfig.vel.addScaledVector(tangent, a);
-                if (keys['ArrowDown'] || keys['s']) playerConfig.vel.addScaledVector(tangent, -a * 0.5); // Ré mais lenta
-                if (keys['ArrowLeft'] || keys['a']) playerConfig.vel.addScaledVector(radial, a); // Para fora (esquerda)
-                if (keys['ArrowRight'] || keys['d']) playerConfig.vel.addScaledVector(radial, -a); // Para dentro (direita)
+                const forward = new THREE.Vector3();
+                camera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
+
+                const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+                if (keys['ArrowUp'] || keys['w']) playerConfig.vel.addScaledVector(forward, a);
+                if (keys['ArrowDown'] || keys['s']) playerConfig.vel.addScaledVector(forward, -a);
+                if (keys['ArrowLeft'] || keys['a']) playerConfig.vel.addScaledVector(right, -a);
+                if (keys['ArrowRight'] || keys['d']) playerConfig.vel.addScaledVector(right, a);
 
                 if (joystick.active) {
-                    playerConfig.vel.addScaledVector(tangent, -joystick.y * a);
-                    playerConfig.vel.addScaledVector(radial, -joystick.x * a);
+                    playerConfig.vel.addScaledVector(forward, -joystick.y * a);
+                    playerConfig.vel.addScaledVector(right, joystick.x * a);
                 }
             }
 
-            // IA de Corrida
+            // IA de Batalha
             enemies.forEach((e, i) => {
                 const c = enemyConfigs[i];
                 if (!c.isFallen) {
-                    // Direção ideal: Tangente à elipse
-                    const tangent = new THREE.Vector3(-e.position.z * TRACK_SCALE_X, 0, e.position.x / TRACK_SCALE_X).normalize();
+                    // Perseguir o jogador ou o centro
+                    let target;
+                    if (!playerConfig.isFallen) {
+                        target = player.position;
+                    } else {
+                        target = new THREE.Vector3(0, 0, 0);
+                    }
 
-                    // Manter no centro da pista
-                    const midRadius = (TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS) / 2;
-                    const effectiveDist = new THREE.Vector2(e.position.x / TRACK_SCALE_X, e.position.z / TRACK_SCALE_Z).length();
-                    const radialDir = new THREE.Vector3(e.position.x, 0, e.position.z).normalize();
-                    const correction = radialDir.multiplyScalar((midRadius - effectiveDist) * 0.05);
-
-                    const targetVel = tangent.add(correction).normalize();
-                    c.vel.addScaledVector(targetVel, c.accel);
+                    const dir = new THREE.Vector3().subVectors(target, e.position).normalize();
+                    c.vel.addScaledVector(dir, c.accel);
                 }
             });
         }
@@ -829,8 +774,8 @@
                 { r: 0.7,  h: 1.325 }  // Ponta superior
             ];
 
-            const dist = new THREE.Vector2(obj.position.x / TRACK_SCALE_X, obj.position.z / TRACK_SCALE_Z).length();
-            const onTrack = (dist >= TRACK_INNER_RADIUS && dist <= TRACK_OUTER_RADIUS);
+            const dist = new THREE.Vector2(obj.position.x, obj.position.z).length();
+            const onTrack = (dist <= ARENA_RADIUS);
             const trackHeight = onTrack ? 0.5 : 0;
 
             let currentGroundLevel = trackHeight;
@@ -857,54 +802,18 @@
             c.vel.x *= friction;
             c.vel.z *= friction;
 
-            // Restrição de Pista (Ring boundaries) com Colisão Física
-            if (dist < TRACK_INNER_RADIUS) {
-                const radialDir = new THREE.Vector3(obj.position.x / (TRACK_SCALE_X * TRACK_SCALE_X), 0, obj.position.z).normalize();
-                // Reposiciona para fora da parede interna
-                const pushOut = (TRACK_INNER_RADIUS - dist) * TRACK_SCALE_X;
-                obj.position.addScaledVector(radialDir, pushOut + 0.5);
-                c.vel.addScaledVector(radialDir, 0.15);
-                c.stamina -= 2;
-                if (obj === player) cameraShake = 0.3;
-                SoundManager.playHit();
-            } else if (dist > TRACK_OUTER_RADIUS) {
-                const radialDir = new THREE.Vector3(obj.position.x / (TRACK_SCALE_X * TRACK_SCALE_X), 0, obj.position.z).normalize();
-                // Reposiciona para dentro da parede externa
-                const pushIn = (dist - TRACK_OUTER_RADIUS) * TRACK_SCALE_X;
+            // Restrição de Arena (Circular) com Colisão Física
+            if (dist > ARENA_RADIUS) {
+                const radialDir = new THREE.Vector3(obj.position.x, 0, obj.position.z).normalize();
+                const pushIn = (dist - ARENA_RADIUS);
                 obj.position.addScaledVector(radialDir, -pushIn - 0.5);
-                c.vel.addScaledVector(radialDir, -0.15);
-                c.stamina -= 2;
+                c.vel.addScaledVector(radialDir, -0.2);
+                c.stamina -= 5;
                 if (obj === player) cameraShake = 0.3;
                 SoundManager.playHit();
             }
 
-            // Lógica de Voltas
-            const currentAngle = Math.atan2(obj.position.z, obj.position.x);
-            if (c.lastAngle !== undefined) {
-                let diff = currentAngle - c.lastAngle;
-                if (diff < -Math.PI) diff += Math.PI * 2;
-                if (diff > Math.PI) diff -= Math.PI * 2;
-                c.angle += diff;
-
-                // 1 volta = 2*PI. Se cruzar a linha (ângulo 0 de volta), conta volta.
-                // Na verdade, basta contar o acumulado de ângulo.
-                c.laps = Math.floor(Math.abs(c.angle) / (Math.PI * 2));
-
-                // Detecção de chegada
-                const LAPS_TO_WIN = 3;
-                if (c.laps >= LAPS_TO_WIN && !c.finished) {
-                    c.finished = true;
-                    c.finishRank = finishers.length + 1;
-                    finishers.push({
-                        name: (obj === player ? 'VOCÊ' : `RIVAL ${enemies.indexOf(obj) + 1}`),
-                        color: c.color,
-                        rank: c.finishRank
-                    });
-                }
-            }
-            c.lastAngle = currentAngle;
-
-            if (!c.isFallen && !c.finished) {
+            if (!c.isFallen) {
                 c.stamina -= (obj === player ? 0.015 : 0.02);
 
                 // Rotação sincronizada com a estabilidade (stamina)
@@ -952,10 +861,6 @@
             pBar.style.background = pStamina < 30 ? '#ff3300' : '#00d2ff';
         }
 
-        const pLaps = document.getElementById('player-laps');
-        if (pLaps) {
-            pLaps.innerText = `VOLTA: ${Math.min(3, playerConfig.laps)}/3`;
-        }
 
         // Para simplificar a corrida, o player-ui segue o player
         const playerUI = document.getElementById('player-ui');
@@ -982,22 +887,13 @@
 
         if (!resultPending) checkGameOver();
 
-        // Update Camera to follow player (Mario Kart style)
+        // Update Camera to follow player
         if (player) {
-            const camDist = 25 * cameraZoom;
-            const camHeight = 10 * cameraZoom;
+            const camDist = 40 * cameraZoom;
+            const camHeight = 25 * cameraZoom;
 
-            // Calculate tangent as "forward" direction (Counter-Clockwise)
-            const tangent = new THREE.Vector3(-player.position.z * TRACK_SCALE_X, 0, player.position.x / TRACK_SCALE_X).normalize();
-
-            const targetPos = player.position.clone()
-                .sub(tangent.clone().multiplyScalar(camDist))
-                .add(new THREE.Vector3(0, camHeight, 0));
-
-            const targetLookAt = player.position.clone().add(tangent.clone().multiplyScalar(5));
-
-            // Smoothly move camera
-            camera.position.lerp(targetPos, 0.08);
+            const targetPos = player.position.clone().add(new THREE.Vector3(0, camHeight, camDist));
+            camera.position.lerp(targetPos, 0.05);
 
             // Camera Shake relative to follow position
             if (cameraShake > 0) {
@@ -1007,84 +903,41 @@
                 if (cameraShake < 0.01) cameraShake = 0;
             }
 
-            camera.lookAt(targetLookAt);
+            camera.lookAt(player.position.x, 0, player.position.z);
         }
 
         renderer.render(scene, camera);
     }
 
     function checkGameOver() {
-        let gameEnded = false;
+        if (gameOver || resultPending) return;
 
-        // O jogo termina se o jogador cair ou terminar
-        if (playerConfig.isFallen || playerConfig.finished) {
-            gameEnded = true;
+        const playerAlive = !playerConfig.isFallen;
+        const enemiesAlive = enemyConfigs.filter(c => !c.isFallen).length;
+
+        let end = false;
+        let win = false;
+
+        if (!playerAlive) {
+            end = true;
+            win = false;
+        } else if (enemiesAlive === 0) {
+            end = true;
+            win = true;
         }
 
-        // Ou se todos os inimigos caírem ou terminarem
-        const opponentsDone = enemyConfigs.every(c => c.isFallen || c.finished);
-        if (opponentsDone) {
-            gameEnded = true;
-        }
-
-        if (gameEnded && !resultPending) {
+        if (end) {
             resultPending = true;
             setTimeout(() => {
                 if (!resultPending) return;
                 gameOver = true;
-
-                // Ordenar quem sobrou por progresso (laps + angle)
-                const allParticipants = [
-                    { name: 'VOCÊ', cfg: playerConfig },
-                    ...enemyConfigs.map((c, i) => ({ name: `RIVAL ${i+1}`, cfg: c }))
-                ];
-
-                // Os que já terminaram estão em 'finishers' na ordem correta.
-                let results = [...finishers];
-
-                // Filtrar quem não está em finishers
-                const nonFinishers = allParticipants.filter(p => !results.some(r => r.name === p.name));
-
-                // Ordenar non-finishers por progresso (distância percorrida)
-                nonFinishers.sort((a, b) => {
-                    if (a.cfg.isFallen && !b.cfg.isFallen) return 1;
-                    if (!a.cfg.isFallen && b.cfg.isFallen) return -1;
-                    return b.cfg.angle - a.cfg.angle;
-                });
-
-                nonFinishers.forEach(p => {
-                    results.push({
-                        name: p.name,
-                        color: p.cfg.color,
-                        rank: results.length + 1,
-                        dnf: p.cfg.isFallen
-                    });
-                });
-
-                const playerResult = results.find(r => r.name === 'VOCÊ');
-                const win = playerResult.rank === 1 && !playerResult.dnf;
-
                 if (win) SoundManager.playWin(); else SoundManager.playLoss();
 
                 const st = document.getElementById('status-text');
-                let rankingHTML = `<h2 style="color: ${win ? '#2ecc71' : '#f1c40f'}">${win ? 'VITÓRIA!' : 'FIM DE CORRIDA'}</h2>`;
-                rankingHTML += `<div style="text-align: left; margin-top: 20px; background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; min-width: 250px;">`;
-
-                results.slice(0, 4).forEach(r => {
-                    const colorHex = '#' + r.color.toString(16).padStart(6, '0');
-                    rankingHTML += `
-                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px; font-size: 1.1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
-                            <span style="font-weight: 900; width: 30px;">${r.rank}º</span>
-                            <div style="width: 16px; height: 16px; background: ${colorHex}; border-radius: 50%; border: 2px solid #fff;"></div>
-                            <span style="flex-grow: 1;">${r.name}</span>
-                            <span style="font-size: 0.7rem; opacity: 0.7;">${r.dnf ? 'DNF' : (r.rank <= finishers.length ? 'FINALIZOU' : 'EM PISTA')}</span>
-                        </div>
-                    `;
-                });
-
-                rankingHTML += `</div>`;
-                st.innerHTML = rankingHTML;
-
+                st.innerHTML = `
+                    <h2 style="color: ${win ? '#2ecc71' : '#f1c40f'}">${win ? 'VOCÊ VENCEU!' : 'VOCÊ CAIU!'}</h2>
+                    <p style="font-size: 1.2rem;">${win ? 'O último peão em pé na arena!' : 'Seu peão parou de girar.'}</p>
+                `;
                 document.getElementById('msg').style.display = 'flex';
                 resultPending = false;
             }, 2000);
