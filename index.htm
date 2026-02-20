@@ -443,7 +443,7 @@
         const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
         arenaFloor.rotation.x = -Math.PI/2;
         arenaFloor.scale.set(TRACK_SCALE_X, TRACK_SCALE_Z, 1);
-        arenaFloor.position.y = 0.01;
+        arenaFloor.position.y = 0.5;
         arenaFloor.receiveShadow = true;
         scene.add(arenaFloor);
 
@@ -455,21 +455,36 @@
         const innerRing = new THREE.Mesh(innerRingGeo, ringMat);
         innerRing.rotation.x = -Math.PI/2;
         innerRing.scale.set(TRACK_SCALE_X, TRACK_SCALE_Z, 1);
-        innerRing.position.y = 0.02;
+        innerRing.position.y = 0.51;
         scene.add(innerRing);
 
         const outerRing = new THREE.Mesh(outerRingGeo, ringMat);
         outerRing.rotation.x = -Math.PI/2;
         outerRing.scale.set(TRACK_SCALE_X, TRACK_SCALE_Z, 1);
-        outerRing.position.y = 0.02;
+        outerRing.position.y = 0.51;
         scene.add(outerRing);
+
+        // Paredes da Pista
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide });
+
+        const innerWallGeo = new THREE.CylinderGeometry(TRACK_INNER_RADIUS, TRACK_INNER_RADIUS, 4, 128, 1, true);
+        const innerWall = new THREE.Mesh(innerWallGeo, wallMat);
+        innerWall.scale.set(TRACK_SCALE_X, 1, 1);
+        innerWall.position.y = 2.5; // Do y=0.5 até y=4.5
+        scene.add(innerWall);
+
+        const outerWallGeo = new THREE.CylinderGeometry(TRACK_OUTER_RADIUS, TRACK_OUTER_RADIUS, 4, 128, 1, true);
+        const outerWall = new THREE.Mesh(outerWallGeo, wallMat);
+        outerWall.scale.set(TRACK_SCALE_X, 1, 1);
+        outerWall.position.y = 2.5;
+        scene.add(outerWall);
 
         // Linha de Largada
         const startLineGeo = new THREE.PlaneGeometry(TRACK_OUTER_RADIUS - TRACK_INNER_RADIUS, 3);
         const startLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
         const startLine = new THREE.Mesh(startLineGeo, startLineMat);
         startLine.rotation.x = -Math.PI/2;
-        startLine.position.set(((TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS)/2) * TRACK_SCALE_X, 0.03, 0);
+        startLine.position.set(((TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS)/2) * TRACK_SCALE_X, 0.52, 0);
         scene.add(startLine);
 
         window.addEventListener('keydown', e => keys[e.key] = true);
@@ -796,9 +811,13 @@
                 { r: 0.7,  h: 1.325 }  // Ponta superior
             ];
 
-            let currentGroundLevel = 0;
+            const dist = new THREE.Vector2(obj.position.x / TRACK_SCALE_X, obj.position.z / TRACK_SCALE_Z).length();
+            const onTrack = (dist >= TRACK_INNER_RADIUS && dist <= TRACK_OUTER_RADIUS);
+            const trackHeight = onTrack ? 0.5 : 0;
+
+            let currentGroundLevel = trackHeight;
             collisionPoints.forEach(p => {
-                const level = p.r * sinTheta - p.h * cosTheta;
+                const level = trackHeight + (p.r * sinTheta - p.h * cosTheta);
                 if (level > currentGroundLevel) currentGroundLevel = level;
             });
 
@@ -821,7 +840,6 @@
             c.vel.z *= friction;
 
             // Restrição de Pista (Ring boundaries)
-            const dist = new THREE.Vector2(obj.position.x / TRACK_SCALE_X, obj.position.z / TRACK_SCALE_Z).length();
             if (dist < TRACK_INNER_RADIUS || dist > TRACK_OUTER_RADIUS) {
                 c.isFallen = true;
                 c.stamina = 0;
@@ -914,10 +932,22 @@
 
         if (!resultPending) checkGameOver();
 
-        // Update Camera to follow player
+        // Update Camera to follow player (Mario Kart style)
         if (player) {
-            const dynamicOffset = CAMERA_OFFSET.clone().multiplyScalar(cameraZoom);
-            camera.position.copy(player.position).add(dynamicOffset);
+            const camDist = 18 * cameraZoom;
+            const camHeight = 8 * cameraZoom;
+
+            // Calculate tangent as "forward" direction (Counter-Clockwise)
+            const tangent = new THREE.Vector3(-player.position.z * TRACK_SCALE_X, 0, player.position.x / TRACK_SCALE_X).normalize();
+
+            const targetPos = player.position.clone()
+                .sub(tangent.clone().multiplyScalar(camDist))
+                .add(new THREE.Vector3(0, camHeight, 0));
+
+            const targetLookAt = player.position.clone().add(tangent.clone().multiplyScalar(5));
+
+            // Smoothly move camera
+            camera.position.lerp(targetPos, 0.08);
 
             // Camera Shake relative to follow position
             if (cameraShake > 0) {
@@ -927,7 +957,7 @@
                 if (cameraShake < 0.01) cameraShake = 0;
             }
 
-            camera.lookAt(player.position);
+            camera.lookAt(targetLookAt);
         }
 
         renderer.render(scene, camera);
