@@ -2,11 +2,22 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Battle Blades 3D - Física Refinada</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #000; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000;
+        }
 
         #ui {
             position: absolute;
@@ -34,7 +45,7 @@
             overflow: hidden;
             border: 1px solid rgba(255,255,255,0.2);
         }
-        .fill { height: 100%; width: 100%; transition: width 0.2s ease-out; }
+        .fill { height: 100%; width: 100%; }
         #player-stamina { background: #00d2ff; box-shadow: 0 0 10px #00d2ff; }
         #enemy-stamina { background: #ff416c; box-shadow: 0 0 10px #ff416c; }
 
@@ -714,7 +725,7 @@
             c.vel.z *= friction;
 
             if (!c.isFallen) {
-                c.stamina -= (char === 'player' ? 0.004 : 0.006);
+                c.stamina -= (char === 'player' ? 0.03 : 0.04);
 
                 // Rotação sincronizada com a estabilidade (stamina)
                 c.rotationSpeed = (c.stamina / 100) * 3.5;
