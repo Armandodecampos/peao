@@ -234,9 +234,9 @@
     let joystick = { x: 0, y: 0, active: false };
     const JOYSTICK_MAX_RADIUS = 50;
 
-    const TRACK_INNER_RADIUS = 40;
-    const TRACK_OUTER_RADIUS = 70;
-    const TRACK_SCALE_X = 1.6;
+    const TRACK_INNER_RADIUS = 80;
+    const TRACK_OUTER_RADIUS = 130;
+    const TRACK_SCALE_X = 1.8;
     const TRACK_SCALE_Z = 1.0;
     const ARENA_RADIUS = TRACK_OUTER_RADIUS; // Para compatibilidade
     const RING_RADIUS = 1.65;
@@ -761,14 +761,18 @@
             // Movimento do Jogador
             if (!playerConfig.isFallen) {
                 const a = playerConfig.accel;
-                if (keys['ArrowUp'] || keys['w']) playerConfig.vel.z -= a;
-                if (keys['ArrowDown'] || keys['s']) playerConfig.vel.z += a;
-                if (keys['ArrowLeft'] || keys['a']) playerConfig.vel.x -= a;
-                if (keys['ArrowRight'] || keys['d']) playerConfig.vel.x += a;
+                // Cálculo de tangente (frente) e radial (lados) baseado na elipse
+                const tangent = new THREE.Vector3(-player.position.z * TRACK_SCALE_X, 0, player.position.x / TRACK_SCALE_X).normalize();
+                const radial = new THREE.Vector3(player.position.x / (TRACK_SCALE_X * TRACK_SCALE_X), 0, player.position.z).normalize();
+
+                if (keys['ArrowUp'] || keys['w']) playerConfig.vel.addScaledVector(tangent, a);
+                if (keys['ArrowDown'] || keys['s']) playerConfig.vel.addScaledVector(tangent, -a * 0.5); // Ré mais lenta
+                if (keys['ArrowLeft'] || keys['a']) playerConfig.vel.addScaledVector(radial, -a); // Para dentro
+                if (keys['ArrowRight'] || keys['d']) playerConfig.vel.addScaledVector(radial, a); // Para fora
 
                 if (joystick.active) {
-                    playerConfig.vel.x += joystick.x * a;
-                    playerConfig.vel.z += joystick.y * a;
+                    playerConfig.vel.addScaledVector(tangent, -joystick.y * a);
+                    playerConfig.vel.addScaledVector(radial, joystick.x * a);
                 }
             }
 
@@ -839,10 +843,25 @@
             c.vel.x *= friction;
             c.vel.z *= friction;
 
-            // Restrição de Pista (Ring boundaries)
-            if (dist < TRACK_INNER_RADIUS || dist > TRACK_OUTER_RADIUS) {
-                c.isFallen = true;
-                c.stamina = 0;
+            // Restrição de Pista (Ring boundaries) com Colisão Física
+            if (dist < TRACK_INNER_RADIUS) {
+                const radialDir = new THREE.Vector3(obj.position.x / (TRACK_SCALE_X * TRACK_SCALE_X), 0, obj.position.z).normalize();
+                // Reposiciona para fora da parede interna
+                const pushOut = (TRACK_INNER_RADIUS - dist) * TRACK_SCALE_X;
+                obj.position.addScaledVector(radialDir, pushOut + 0.5);
+                c.vel.addScaledVector(radialDir, 0.15);
+                c.stamina -= 2;
+                if (obj === player) cameraShake = 0.3;
+                SoundManager.playHit();
+            } else if (dist > TRACK_OUTER_RADIUS) {
+                const radialDir = new THREE.Vector3(obj.position.x / (TRACK_SCALE_X * TRACK_SCALE_X), 0, obj.position.z).normalize();
+                // Reposiciona para dentro da parede externa
+                const pushIn = (dist - TRACK_OUTER_RADIUS) * TRACK_SCALE_X;
+                obj.position.addScaledVector(radialDir, -pushIn - 0.5);
+                c.vel.addScaledVector(radialDir, -0.15);
+                c.stamina -= 2;
+                if (obj === player) cameraShake = 0.3;
+                SoundManager.playHit();
             }
 
             // Lógica de Voltas
@@ -934,8 +953,8 @@
 
         // Update Camera to follow player (Mario Kart style)
         if (player) {
-            const camDist = 18 * cameraZoom;
-            const camHeight = 8 * cameraZoom;
+            const camDist = 35 * cameraZoom;
+            const camHeight = 15 * cameraZoom;
 
             // Calculate tangent as "forward" direction (Counter-Clockwise)
             const tangent = new THREE.Vector3(-player.position.z * TRACK_SCALE_X, 0, player.position.x / TRACK_SCALE_X).normalize();
