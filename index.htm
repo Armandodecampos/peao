@@ -201,6 +201,7 @@
     <div id="player-ui" class="floating-ui">
         <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">VOCÊ</div>
         <div class="stat-bar"><div id="player-stamina" class="fill"></div></div>
+        <div id="player-laps" style="font-size: 12px; font-weight: bold; color: #f1c40f;">VOLTA: 0/3</div>
     </div>
     <div id="enemy-ui" class="floating-ui">
         <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">RIVAL</div>
@@ -224,6 +225,7 @@
     let keys = {};
     let gameOver = false;
     let gameStarted = false;
+    let finishers = [];
     let raceActive = false;
     let resultPending = false;
     let sparks = [];
@@ -253,7 +255,10 @@
         accel: 0.02,
         mass: 5.0,
         laps: 0,
-        angle: 0
+        angle: 0,
+        finished: false,
+        finishRank: 0,
+        color: 0x2980b9
     };
 
     let enemyConfigs = [];
@@ -609,7 +614,8 @@
         const colorVal = document.getElementById('player-color').value.replace('#', '0x');
         const shapeVal = document.getElementById('player-shape').value;
 
-        player = createBlade(parseInt(colorVal), shapeVal);
+        playerConfig.color = parseInt(colorVal);
+        player = createBlade(playerConfig.color, shapeVal);
         scene.add(player);
 
         const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60];
@@ -630,7 +636,10 @@
                 accel: 0.015 + Math.random() * 0.01,
                 mass: 5.0,
                 laps: 0,
-                angle: 0
+                angle: 0,
+                finished: false,
+                finishRank: 0,
+                color: enemyColors[i]
             });
         }
 
@@ -667,6 +676,7 @@
     }
 
     function resetPositions() {
+        finishers = [];
         const midRadius = (TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS) / 2;
         const startX = midRadius * TRACK_SCALE_X;
 
@@ -680,6 +690,8 @@
         playerConfig.laps = 0;
         playerConfig.angle = 0;
         playerConfig.lastAngle = undefined;
+        playerConfig.finished = false;
+        playerConfig.finishRank = 0;
 
         enemies.forEach((e, i) => {
             const offset = (i + 1) * 5;
@@ -694,6 +706,8 @@
             c.laps = 0;
             c.angle = 0;
             c.lastAngle = undefined;
+            c.finished = false;
+            c.finishRank = 0;
         });
 
         gameOver = false;
@@ -875,10 +889,22 @@
                 // 1 volta = 2*PI. Se cruzar a linha (ângulo 0 de volta), conta volta.
                 // Na verdade, basta contar o acumulado de ângulo.
                 c.laps = Math.floor(Math.abs(c.angle) / (Math.PI * 2));
+
+                // Detecção de chegada
+                const LAPS_TO_WIN = 3;
+                if (c.laps >= LAPS_TO_WIN && !c.finished) {
+                    c.finished = true;
+                    c.finishRank = finishers.length + 1;
+                    finishers.push({
+                        name: (obj === player ? 'VOCÊ' : `RIVAL ${enemies.indexOf(obj) + 1}`),
+                        color: c.color,
+                        rank: c.finishRank
+                    });
+                }
             }
             c.lastAngle = currentAngle;
 
-            if (!c.isFallen) {
+            if (!c.isFallen && !c.finished) {
                 c.stamina -= (obj === player ? 0.015 : 0.02);
 
                 // Rotação sincronizada com a estabilidade (stamina)
@@ -886,8 +912,8 @@
                 obj.rotation.y += c.rotationSpeed;
 
                 // Wobble natural
-                const baseWobble = Math.pow(Math.max(0, 1.2 - c.rotationSpeed), 2) * 0.5;
-                c.hitWobble *= 0.95;
+                const baseWobble = Math.pow(Math.max(0, 1.2 - c.rotationSpeed), 2) * 0.2;
+                c.hitWobble *= 0.9;
                 const targetWobble = baseWobble + c.hitWobble;
                 c.wobble = THREE.MathUtils.lerp(c.wobble, targetWobble, 0.08);
 
@@ -924,6 +950,11 @@
         if (pBar) {
             pBar.style.width = pStamina + '%';
             pBar.style.background = pStamina < 30 ? '#ff3300' : '#00d2ff';
+        }
+
+        const pLaps = document.getElementById('player-laps');
+        if (pLaps) {
+            pLaps.innerText = `VOLTA: ${Math.min(3, playerConfig.laps)}/3`;
         }
 
         // Para simplificar a corrida, o player-ui segue o player
@@ -983,39 +1014,77 @@
     }
 
     function checkGameOver() {
-        const LAPS_TO_WIN = 3;
-        let status = "";
-        let win = false;
+        let gameEnded = false;
 
-        const allEnemiesFallen = enemyConfigs.every(c => c.isFallen);
-
-        if (playerConfig.isFallen) {
-            status = "SEU PEÃO SAIU DA PISTA OU PAROU!";
-            win = false;
-        } else if (playerConfig.laps >= LAPS_TO_WIN) {
-            status = "VOCÊ VENCEU A CORRIDA!";
-            win = true;
-        } else if (allEnemiesFallen) {
-            status = "TODOS OS RIVAIS FORAM DERROTADOS!";
-            win = true;
-        } else {
-            enemies.forEach((e, i) => {
-                if (enemyConfigs[i].laps >= LAPS_TO_WIN) {
-                    status = "UM RIVAL VENCEU A CORRIDA!";
-                    win = false;
-                }
-            });
+        // O jogo termina se o jogador cair ou terminar
+        if (playerConfig.isFallen || playerConfig.finished) {
+            gameEnded = true;
         }
 
-        if (status !== "") {
+        // Ou se todos os inimigos caírem ou terminarem
+        const opponentsDone = enemyConfigs.every(c => c.isFallen || c.finished);
+        if (opponentsDone) {
+            gameEnded = true;
+        }
+
+        if (gameEnded && !resultPending) {
             resultPending = true;
             setTimeout(() => {
                 if (!resultPending) return;
                 gameOver = true;
+
+                // Ordenar quem sobrou por progresso (laps + angle)
+                const allParticipants = [
+                    { name: 'VOCÊ', cfg: playerConfig },
+                    ...enemyConfigs.map((c, i) => ({ name: `RIVAL ${i+1}`, cfg: c }))
+                ];
+
+                // Os que já terminaram estão em 'finishers' na ordem correta.
+                let results = [...finishers];
+
+                // Filtrar quem não está em finishers
+                const nonFinishers = allParticipants.filter(p => !results.some(r => r.name === p.name));
+
+                // Ordenar non-finishers por progresso (distância percorrida)
+                nonFinishers.sort((a, b) => {
+                    if (a.cfg.isFallen && !b.cfg.isFallen) return 1;
+                    if (!a.cfg.isFallen && b.cfg.isFallen) return -1;
+                    return b.cfg.angle - a.cfg.angle;
+                });
+
+                nonFinishers.forEach(p => {
+                    results.push({
+                        name: p.name,
+                        color: p.cfg.color,
+                        rank: results.length + 1,
+                        dnf: p.cfg.isFallen
+                    });
+                });
+
+                const playerResult = results.find(r => r.name === 'VOCÊ');
+                const win = playerResult.rank === 1 && !playerResult.dnf;
+
                 if (win) SoundManager.playWin(); else SoundManager.playLoss();
+
                 const st = document.getElementById('status-text');
-                st.innerHTML = `<h2>${win ? 'VITÓRIA' : 'DERROTA'}</h2><p>${status}</p>`;
-                st.style.color = win ? "#2ecc71" : "#e74c3c";
+                let rankingHTML = `<h2 style="color: ${win ? '#2ecc71' : '#f1c40f'}">${win ? 'VITÓRIA!' : 'FIM DE CORRIDA'}</h2>`;
+                rankingHTML += `<div style="text-align: left; margin-top: 20px; background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; min-width: 250px;">`;
+
+                results.slice(0, 4).forEach(r => {
+                    const colorHex = '#' + r.color.toString(16).padStart(6, '0');
+                    rankingHTML += `
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px; font-size: 1.1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+                            <span style="font-weight: 900; width: 30px;">${r.rank}º</span>
+                            <div style="width: 16px; height: 16px; background: ${colorHex}; border-radius: 50%; border: 2px solid #fff;"></div>
+                            <span style="flex-grow: 1;">${r.name}</span>
+                            <span style="font-size: 0.7rem; opacity: 0.7;">${r.dnf ? 'DNF' : (r.rank <= finishers.length ? 'FINALIZOU' : 'EM PISTA')}</span>
+                        </div>
+                    `;
+                });
+
+                rankingHTML += `</div>`;
+                st.innerHTML = rankingHTML;
+
                 document.getElementById('msg').style.display = 'flex';
                 resultPending = false;
             }, 2000);
