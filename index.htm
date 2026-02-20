@@ -386,19 +386,22 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
         const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
-        sunLight.position.set(10, 50, 10);
+        sunLight.position.set(20, 80, 20);
         sunLight.castShadow = true;
         sunLight.shadow.mapSize.width = 2048;
         sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.left = -50;
-        sunLight.shadow.camera.right = 50;
-        sunLight.shadow.camera.top = 50;
-        sunLight.shadow.camera.bottom = -50;
+        sunLight.shadow.camera.left = -150;
+        sunLight.shadow.camera.right = 150;
+        sunLight.shadow.camera.top = 150;
+        sunLight.shadow.camera.bottom = -150;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 300;
         scene.add(sunLight);
 
         const loadingManager = new THREE.LoadingManager();
@@ -507,7 +510,9 @@
     }
 
     function createBlade(color, shapeType = 'classic') {
-        const group = new THREE.Group();
+        const pivot = new THREE.Group();
+        const spinner = new THREE.Group();
+        pivot.add(spinner);
 
         // Design detalhado e robusto
         const tipGeo = new THREE.ConeGeometry(0.5, 0.7, 16);
@@ -516,14 +521,16 @@
         tip.rotation.x = Math.PI;
         tip.position.y = 0.35;
         tip.castShadow = true;
-        group.add(tip);
+        tip.receiveShadow = true;
+        spinner.add(tip);
 
         const bodyGeo = new THREE.CylinderGeometry(1.2, 0.6, 0.45, 16);
         const bodyMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2, metalness: 0.6 });
         const body = new THREE.Mesh(bodyGeo, bodyMat);
         body.position.y = 0.75;
         body.castShadow = true;
-        group.add(body);
+        body.receiveShadow = true;
+        spinner.add(body);
 
         let ringGeo;
         if (shapeType === 'bolt') {
@@ -545,19 +552,23 @@
 
         ring.position.y = 1.0;
         ring.castShadow = true;
-        group.add(ring);
+        ring.receiveShadow = true;
+        spinner.add(ring);
 
         const topGeo = new THREE.CylinderGeometry(0.7, 1.25, 0.15, 16);
         const top = new THREE.Mesh(topGeo, bodyMat);
         top.position.y = 1.25;
-        group.add(top);
+        top.castShadow = true;
+        top.receiveShadow = true;
+        spinner.add(top);
 
         // Indicador visual de rotação
         const line = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.04, 0.2), new THREE.MeshBasicMaterial({color: 0xffffff}));
         line.position.y = 1.15;
-        group.add(line);
+        line.castShadow = true;
+        spinner.add(line);
 
-        return group;
+        return pivot;
     }
 
     function startGame() {
@@ -634,6 +645,7 @@
 
         player.position.set(spawnDist, 0, 0);
         player.rotation.set(0,0,0);
+        if (player.children[0]) player.children[0].rotation.set(0,0,0);
         playerConfig.vel.set(0,0,0);
         playerConfig.stamina = 100;
         playerConfig.isFallen = false;
@@ -644,6 +656,7 @@
             const angle = ((i + 1) / (enemies.length + 1)) * Math.PI * 2;
             e.position.set(Math.cos(angle) * spawnDist, 0, Math.sin(angle) * spawnDist);
             e.rotation.set(0,0,0);
+            if (e.children[0]) e.children[0].rotation.set(0,0,0);
             const c = enemyConfigs[i];
             c.vel.set(0,0,0);
             c.stamina = 100;
@@ -813,28 +826,33 @@
                 SoundManager.playHit();
             }
 
+            const spinner = obj.children[0];
+
             if (!c.isFallen) {
                 c.stamina -= (obj === player ? 0.015 : 0.02);
 
                 // Rotação sincronizada com a estabilidade (stamina)
                 c.rotationSpeed = (c.stamina / 100) * 3.5;
-                obj.rotation.y += c.rotationSpeed;
+                if (spinner) spinner.rotation.y += c.rotationSpeed;
 
                 // Wobble natural
                 const baseWobble = Math.pow(Math.max(0, 1.2 - c.rotationSpeed), 2) * 0.2;
-                c.hitWobble *= 0.9;
+                c.hitWobble *= 0.95;
                 const targetWobble = baseWobble + c.hitWobble;
-                c.wobble = THREE.MathUtils.lerp(c.wobble, targetWobble, 0.08);
+                c.wobble = THREE.MathUtils.lerp(c.wobble, targetWobble, 0.1);
 
                 const t = Date.now() * 0.01;
-                obj.rotation.x = (c.vel.z * 1.1) + Math.sin(t) * c.wobble;
-                obj.rotation.z = (-c.vel.x * 1.1) + Math.cos(t) * c.wobble;
+                const targetRotX = (c.vel.z * 1.2) + Math.sin(t) * c.wobble;
+                const targetRotZ = (-c.vel.x * 1.2) + Math.cos(t) * c.wobble;
+
+                obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, targetRotX, 0.15);
+                obj.rotation.z = THREE.MathUtils.lerp(obj.rotation.z, targetRotZ, 0.15);
 
                 if (c.stamina <= 0 || c.wobble > 1.2) c.isFallen = true;
             } else {
                 // Queda Dinâmica
                 c.rotationSpeed *= 0.96; // Desaceleração rápida da rotação
-                obj.rotation.y += c.rotationSpeed;
+                if (spinner) spinner.rotation.y += c.rotationSpeed;
 
                 // Aumentar o wobble para simular a perda de equilíbrio total
                 c.wobble = THREE.MathUtils.lerp(c.wobble, 1.55, 0.05);
