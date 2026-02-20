@@ -227,6 +227,8 @@
     let raceActive = false;
     let resultPending = false;
     let sparks = [];
+    let hearts = [];
+    let lastHeartSpawn = 0;
     let cameraShake = 0;
     let cameraZoom = 1.0;
     const CAMERA_OFFSET = new THREE.Vector3(0, 40, 35);
@@ -235,6 +237,16 @@
     const JOYSTICK_MAX_RADIUS = 50;
 
     const ARENA_RADIUS = 100;
+
+    const heartShape = new THREE.Shape();
+    heartShape.moveTo(0, 0);
+    heartShape.bezierCurveTo(0, -0.3, -0.6, -0.3, -0.6, 0);
+    heartShape.bezierCurveTo(-0.6, 0.6, 0, 1.0, 0, 1.5);
+    heartShape.bezierCurveTo(0, 1.0, 0.6, 0.6, 0.6, 0);
+    heartShape.bezierCurveTo(0.6, -0.3, 0, -0.3, 0, 0);
+    const heartGeo = new THREE.ExtrudeGeometry(heartShape, { depth: 0.4, bevelEnabled: true, bevelSegments: 2, steps: 2, bevelSize: 0.1, bevelThickness: 0.1 });
+    heartGeo.center();
+    const heartMat = new THREE.MeshPhongMaterial({ color: 0xff3333, shininess: 100 });
     const RING_RADIUS = 1.65;
     const RING_HEIGHT = 1.0;
 
@@ -331,6 +343,22 @@
             osc.stop(this.ctx.currentTime + 0.5);
         },
 
+        playCollect() {
+            if (!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, t);
+            osc.frequency.exponentialRampToValueAtTime(1200, t + 0.2);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+            osc.connect(gain);
+            gain.connect(this.mainGain);
+            osc.start(t);
+            osc.stop(t + 0.2);
+        },
+
         playWin() {
             if (!this.ctx) return;
             [440, 554, 659].forEach((f, i) => {
@@ -393,6 +421,28 @@
             this.mesh.scale.setScalar(this.life * (0.5 + Math.random() * 1.5));
             if (this.life <= 0) { scene.remove(this.mesh); return false; }
             return true;
+        }
+    }
+
+    class Heart {
+        constructor() {
+            this.mesh = new THREE.Mesh(heartGeo, heartMat);
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * (ARENA_RADIUS * 0.8);
+            this.mesh.position.set(Math.cos(angle) * dist, 1.5, Math.sin(angle) * dist);
+            this.mesh.rotation.x = Math.PI;
+            this.mesh.castShadow = true;
+            scene.add(this.mesh);
+            this.active = true;
+        }
+        update() {
+            this.mesh.rotation.y += 0.03;
+            this.mesh.position.y = 1.5 + Math.sin(Date.now() * 0.003) * 0.2;
+            return this.active;
+        }
+        collect() {
+            scene.remove(this.mesh);
+            this.active = false;
         }
     }
 
@@ -627,6 +677,9 @@
         });
         enemies = [];
         enemyConfigs = [];
+        hearts.forEach(h => scene.remove(h.mesh));
+        hearts = [];
+        lastHeartSpawn = Date.now();
 
         const colorVal = document.getElementById('player-color').value.replace('#', '0x');
         const shapeVal = document.getElementById('player-shape').value;
@@ -743,6 +796,21 @@
     function checkCollision() {
         const allBlades = [{mesh: player, cfg: playerConfig}, ...enemies.map((e, i) => ({mesh: e.pivot, cfg: enemyConfigs[i]}))];
 
+        // Colisões com Corações
+        allBlades.forEach(b => {
+            if (b.cfg.isFallen) return;
+            hearts.forEach(h => {
+                if (h.active) {
+                    const d = b.mesh.position.distanceTo(h.mesh.position);
+                    if (d < 3.5) {
+                        h.collect();
+                        b.cfg.stamina = Math.min(100, b.cfg.stamina + 10);
+                        SoundManager.playCollect();
+                    }
+                }
+            });
+        });
+
         for (let i = 0; i < allBlades.length; i++) {
             for (let j = i + 1; j < allBlades.length; j++) {
                 const b1 = allBlades[i];
@@ -782,6 +850,12 @@
     function animate() {
         requestAnimationFrame(animate);
         sparks = sparks.filter(s => s.update());
+        hearts = hearts.filter(h => h.update());
+
+        if (raceActive && Date.now() - lastHeartSpawn > 10000 && hearts.length < 3) {
+            hearts.push(new Heart());
+            lastHeartSpawn = Date.now();
+        }
 
         if (!gameStarted || (gameOver && !resultPending)) {
             renderer.render(scene, camera);
@@ -815,9 +889,24 @@
             enemies.forEach((e, i) => {
                 const c = enemyConfigs[i];
                 if (!c.isFallen) {
-                    // Perseguir o jogador ou o centro
+                    // Perseguir o coração mais próximo, jogador ou centro
                     let target;
-                    if (!playerConfig.isFallen) {
+
+                    let nearestHeart = null;
+                    let minDist = Infinity;
+                    hearts.forEach(h => {
+                        if (h.active) {
+                            const d = e.pivot.position.distanceTo(h.mesh.position);
+                            if (d < minDist) {
+                                minDist = d;
+                                nearestHeart = h;
+                            }
+                        }
+                    });
+
+                    if (nearestHeart) {
+                        target = nearestHeart.mesh.position;
+                    } else if (!playerConfig.isFallen) {
                         target = player.position;
                     } else {
                         target = new THREE.Vector3(0, 0, 0);
