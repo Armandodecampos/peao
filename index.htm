@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Battle Blades 3D - Física Refinada</title>
+    <title>Battle Blades Racing - Corrida de Peões</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         html, body {
@@ -149,6 +149,20 @@
         }
 
         #msg { display: none; text-align: center; }
+
+        #countdown-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 8rem;
+            color: #f1c40f;
+            font-weight: 900;
+            z-index: 2000;
+            display: none;
+            text-shadow: 0 0 30px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -160,9 +174,11 @@
     </div>
 </div>
 
+<div id="countdown-overlay"></div>
+
 <div id="start-screen" class="overlay" style="display: none;">
-    <h1>BATTLE BLADES</h1>
-    <p>ESCOLHA SUA COR</p>
+    <h1>BATTLE RACING</h1>
+    <p>ESCOLHA SUA COR E FORMATO</p>
     <div style="margin: 20px 0; display: flex; flex-direction: column; align-items: center; gap: 15px;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <label style="font-weight: bold; letter-spacing: 2px;">COR:</label>
@@ -178,7 +194,7 @@
             </select>
         </div>
     </div>
-    <button class="main-btn" onclick="startGame()">INICIAR BATALHA</button>
+    <button class="main-btn" onclick="startGame()">INICIAR CORRIDA</button>
 </div>
 
 <div id="ui">
@@ -204,10 +220,11 @@
 </div>
 
 <script>
-    let scene, camera, renderer, player, enemy;
+    let scene, camera, renderer, player, enemies = [];
     let keys = {};
     let gameOver = false;
     let gameStarted = false;
+    let raceActive = false;
     let resultPending = false;
     let sparks = [];
     let cameraShake = 0;
@@ -217,36 +234,27 @@
     let joystick = { x: 0, y: 0, active: false };
     const JOYSTICK_MAX_RADIUS = 50;
 
-    const ARENA_RADIUS = 20;
+    const TRACK_INNER_RADIUS = 18;
+    const TRACK_OUTER_RADIUS = 30;
+    const ARENA_RADIUS = TRACK_OUTER_RADIUS; // Para compatibilidade
     const RING_RADIUS = 1.65;
     const RING_HEIGHT = 1.0;
 
-    // Configurações de física para peões pesados com pouco empuxo
-    const config = {
-        player: {
-            pos: new THREE.Vector3(-6, 0, 0),
-            vel: new THREE.Vector3(0, 0, 0),
-            stamina: 100,
-            rotationSpeed: 1.5,
-            wobble: 0,
-            hitWobble: 0,
-            isFallen: false,
-            accel: 0.015, // Ainda mais lento e pesado
-            mass: 5.0     // Massa dobrada
-        },
-        enemy: {
-            pos: new THREE.Vector3(6, 0, 0),
-            vel: new THREE.Vector3(0, 0, 0),
-            stamina: 100,
-            rotationSpeed: 1.5,
-            wobble: 0,
-            hitWobble: 0,
-            isFallen: false,
-            accel: 0.007,
-            color: 0xc0392b,
-            mass: 5.0
-        }
+    // Configurações de física para peões de corrida
+    let playerConfig = {
+        vel: new THREE.Vector3(0, 0, 0),
+        stamina: 100,
+        rotationSpeed: 1.5,
+        wobble: 0,
+        hitWobble: 0,
+        isFallen: false,
+        accel: 0.02,
+        mass: 5.0,
+        laps: 0,
+        angle: 0
     };
+
+    let enemyConfigs = [];
 
 
     const sparkGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
@@ -423,23 +431,41 @@
         floor.receiveShadow = true;
         scene.add(floor);
 
-        // Arena (Cimento Queimado)
+        // Pista de Corrida (Cimento Queimado)
         const cementTex = loader.load("https://dl.dropbox.com/scl/fi/gh66sugd65o7bppoza6iq/textura-de-cimento-queimado.png?rlkey=mgc0pcnhhd8mjbidp6xfbhood&st=vy13hxmc&dl=0");
-        const arenaFloorGeo = new THREE.CircleGeometry(ARENA_RADIUS, 64);
-        const arenaFloorMat = new THREE.MeshPhongMaterial({ map: cementTex, shininess: 10 });
+        cementTex.wrapS = cementTex.wrapT = THREE.RepeatWrapping;
+        cementTex.repeat.set(10, 2);
+
+        const arenaFloorGeo = new THREE.RingGeometry(TRACK_INNER_RADIUS, TRACK_OUTER_RADIUS, 128);
+        const arenaFloorMat = new THREE.MeshPhongMaterial({ map: cementTex, shininess: 10, side: THREE.DoubleSide });
         const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
         arenaFloor.rotation.x = -Math.PI/2;
         arenaFloor.position.y = 0.01;
         arenaFloor.receiveShadow = true;
         scene.add(arenaFloor);
 
-        // Círculo Vermelho (Arena Border)
-        const ringGeo = new THREE.RingGeometry(ARENA_RADIUS - 0.08, ARENA_RADIUS + 0.08, 128);
+        // Bordas da Pista
+        const innerRingGeo = new THREE.RingGeometry(TRACK_INNER_RADIUS - 0.2, TRACK_INNER_RADIUS + 0.2, 128);
+        const outerRingGeo = new THREE.RingGeometry(TRACK_OUTER_RADIUS - 0.2, TRACK_OUTER_RADIUS + 0.2, 128);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.rotation.x = -Math.PI/2;
-        ring.position.y = 0.02;
-        scene.add(ring);
+
+        const innerRing = new THREE.Mesh(innerRingGeo, ringMat);
+        innerRing.rotation.x = -Math.PI/2;
+        innerRing.position.y = 0.02;
+        scene.add(innerRing);
+
+        const outerRing = new THREE.Mesh(outerRingGeo, ringMat);
+        outerRing.rotation.x = -Math.PI/2;
+        outerRing.position.y = 0.02;
+        scene.add(outerRing);
+
+        // Linha de Largada
+        const startLineGeo = new THREE.PlaneGeometry(TRACK_OUTER_RADIUS - TRACK_INNER_RADIUS, 1);
+        const startLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+        const startLine = new THREE.Mesh(startLineGeo, startLineMat);
+        startLine.rotation.x = -Math.PI/2;
+        startLine.position.set((TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS)/2, 0.03, 0);
+        scene.add(startLine);
 
         window.addEventListener('keydown', e => keys[e.key] = true);
         window.addEventListener('keyup', e => keys[e.key] = false);
@@ -554,20 +580,39 @@
     function startGame() {
         SoundManager.init();
         SoundManager.playStart();
+
         if(player) scene.remove(player);
-        if(enemy) scene.remove(enemy);
+        enemies.forEach(e => scene.remove(e));
+        enemies = [];
+        enemyConfigs = [];
 
         const colorVal = document.getElementById('player-color').value.replace('#', '0x');
         const shapeVal = document.getElementById('player-shape').value;
 
         player = createBlade(parseInt(colorVal), shapeVal);
-
-        const enemyShapes = ['classic', 'bolt', 'wave', 'saw'];
-        const enemyShape = enemyShapes[Math.floor(Math.random() * enemyShapes.length)];
-        enemy = createBlade(config.enemy.color, enemyShape);
-
         scene.add(player);
-        scene.add(enemy);
+
+        const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60];
+        const enemyShapes = ['classic', 'bolt', 'wave', 'saw'];
+
+        for(let i=0; i<3; i++) {
+            const eShape = enemyShapes[Math.floor(Math.random() * enemyShapes.length)];
+            const eBlade = createBlade(enemyColors[i], eShape);
+            scene.add(eBlade);
+            enemies.push(eBlade);
+            enemyConfigs.push({
+                vel: new THREE.Vector3(0, 0, 0),
+                stamina: 100,
+                rotationSpeed: 1.5,
+                wobble: 0,
+                hitWobble: 0,
+                isFallen: false,
+                accel: 0.015 + Math.random() * 0.01,
+                mass: 5.0,
+                laps: 0,
+                angle: 0
+            });
+        }
 
         resetPositions();
 
@@ -575,23 +620,59 @@
         document.getElementById('ui').style.display = 'block';
         document.getElementById('joystick-container').style.display = 'block';
         gameStarted = true;
+
+        startCountdown();
+    }
+
+    function startCountdown() {
+        const overlay = document.getElementById('countdown-overlay');
+        overlay.style.display = 'block';
+        raceActive = false;
+
+        let count = 3;
+        overlay.innerText = count;
+
+        const timer = setInterval(() => {
+            count--;
+            if (count > 0) {
+                overlay.innerText = count;
+            } else if (count === 0) {
+                overlay.innerText = "JÁ!";
+            } else {
+                clearInterval(timer);
+                overlay.style.display = 'none';
+                raceActive = true;
+            }
+        }, 1000);
     }
 
     function resetPositions() {
-        player.position.set(-12, 0, 0);
-        enemy.position.set(12, 0, 0);
+        const midRadius = (TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS) / 2;
+
+        player.position.set(midRadius, 0, -2);
         player.rotation.set(0,0,0);
-        enemy.rotation.set(0,0,0);
-        config.player.vel.set(0,0,0);
-        config.enemy.vel.set(0,0,0);
-        config.player.stamina = 100;
-        config.enemy.stamina = 100;
-        config.player.isFallen = false;
-        config.enemy.isFallen = false;
-        config.player.wobble = 0;
-        config.enemy.wobble = 0;
-        config.player.hitWobble = 0;
-        config.enemy.hitWobble = 0;
+        playerConfig.vel.set(0,0,0);
+        playerConfig.stamina = 100;
+        playerConfig.isFallen = false;
+        playerConfig.wobble = 0;
+        playerConfig.hitWobble = 0;
+        playerConfig.laps = 0;
+        playerConfig.angle = 0;
+
+        enemies.forEach((e, i) => {
+            const offset = (i + 1) * 2;
+            e.position.set(midRadius, 0, offset);
+            e.rotation.set(0,0,0);
+            const c = enemyConfigs[i];
+            c.vel.set(0,0,0);
+            c.stamina = 100;
+            c.isFallen = false;
+            c.wobble = 0;
+            c.hitWobble = 0;
+            c.laps = 0;
+            c.angle = 0;
+        });
+
         gameOver = false;
         resultPending = false;
         document.getElementById('msg').style.display = 'none';
@@ -606,47 +687,41 @@
     }
 
     function checkCollision() {
-        if (config.player.isFallen || config.enemy.isFallen) return;
+        const allBlades = [{mesh: player, cfg: playerConfig}, ...enemies.map((e, i) => ({mesh: e, cfg: enemyConfigs[i]}))];
 
-        const dist = player.position.distanceTo(enemy.position);
-        if (dist < 3.2) {
-            const forceDir = new THREE.Vector3().subVectors(player.position, enemy.position).normalize();
+        for (let i = 0; i < allBlades.length; i++) {
+            for (let j = i + 1; j < allBlades.length; j++) {
+                const b1 = allBlades[i];
+                const b2 = allBlades[j];
 
-            // Cálculo de impacto reduzido para empurrar pouco
-            const relVel = new THREE.Vector3().subVectors(config.player.vel, config.enemy.vel).length();
+                if (b1.cfg.isFallen || b2.cfg.isFallen) continue;
 
-            // Fator de empuxo (0.05 para um impacto mais sólido)
-            const pushFactor = 0.05 + (relVel * 0.3);
-            const power = (config.player.rotationSpeed + config.enemy.rotationSpeed) * pushFactor;
+                const dist = b1.mesh.position.distanceTo(b2.mesh.position);
+                if (dist < 3.2) {
+                    const forceDir = new THREE.Vector3().subVectors(b1.mesh.position, b2.mesh.position).normalize();
+                    const relVel = new THREE.Vector3().subVectors(b1.cfg.vel, b2.cfg.vel).length();
+                    const pushFactor = 0.05 + (relVel * 0.3);
+                    const power = (b1.cfg.rotationSpeed + b2.cfg.rotationSpeed) * pushFactor;
 
-            // Inércia: Divisão pela massa elevada
-            const impulseP = power / config.player.mass;
-            const impulseE = power / config.enemy.mass;
+                    b1.cfg.vel.addScaledVector(forceDir, power / b1.cfg.mass);
+                    b2.cfg.vel.addScaledVector(forceDir, -power / b2.cfg.mass);
 
-            config.player.vel.addScaledVector(forceDir, impulseP);
-            config.enemy.vel.addScaledVector(forceDir, -impulseE);
+                    b1.cfg.vel.y += 0.06;
+                    b2.cfg.vel.y += 0.06;
+                    if (b1.mesh === player || b2.mesh === player) cameraShake = 0.4;
 
-            // Impulso vertical e efeito de chocalho (rattle)
-            config.player.vel.y += 0.06;
-            config.enemy.vel.y += 0.06;
-            cameraShake = 0.4;
-            const rattle = 0.02;
-            config.player.vel.x += (Math.random() - 0.5) * rattle;
-            config.player.vel.z += (Math.random() - 0.5) * rattle;
-            config.enemy.vel.x += (Math.random() - 0.5) * rattle;
-            config.enemy.vel.z += (Math.random() - 0.5) * rattle;
+                    const damage = 1 + (relVel * 4);
+                    b1.cfg.stamina -= damage;
+                    b2.cfg.stamina -= damage;
 
-            // A perda de estabilidade continua sendo o foco principal do combate
-            const damage = 1 + (relVel * 4);
-            config.player.stamina -= damage;
-            config.enemy.stamina -= damage * 1.1;
+                    b1.cfg.hitWobble += 0.15;
+                    b2.cfg.hitWobble += 0.15;
 
-            config.player.hitWobble += 0.15;
-            config.enemy.hitWobble += 0.15;
-
-            const mid = new THREE.Vector3().lerpVectors(player.position, enemy.position, 0.5);
-            for(let i=0; i<8; i++) sparks.push(new Spark(mid));
-            SoundManager.playHit();
+                    const mid = new THREE.Vector3().lerpVectors(b1.mesh.position, b2.mesh.position, 0.5);
+                    for(let k=0; k<5; k++) sparks.push(new Spark(mid));
+                    SoundManager.playHit();
+                }
+            }
         }
     }
 
@@ -659,30 +734,44 @@
             return;
         }
 
-        // Movimento do Jogador
-        if (!config.player.isFallen) {
-            const a = config.player.accel;
-            if (keys['ArrowUp'] || keys['w']) config.player.vel.z -= a;
-            if (keys['ArrowDown'] || keys['s']) config.player.vel.z += a;
-            if (keys['ArrowLeft'] || keys['a']) config.player.vel.x -= a;
-            if (keys['ArrowRight'] || keys['d']) config.player.vel.x += a;
+        if (raceActive) {
+            // Movimento do Jogador
+            if (!playerConfig.isFallen) {
+                const a = playerConfig.accel;
+                if (keys['ArrowUp'] || keys['w']) playerConfig.vel.z -= a;
+                if (keys['ArrowDown'] || keys['s']) playerConfig.vel.z += a;
+                if (keys['ArrowLeft'] || keys['a']) playerConfig.vel.x -= a;
+                if (keys['ArrowRight'] || keys['d']) playerConfig.vel.x += a;
 
-            if (joystick.active) {
-                config.player.vel.x += joystick.x * a;
-                config.player.vel.z += joystick.y * a;
+                if (joystick.active) {
+                    playerConfig.vel.x += joystick.x * a;
+                    playerConfig.vel.z += joystick.y * a;
+                }
             }
+
+            // IA de Corrida
+            enemies.forEach((e, i) => {
+                const c = enemyConfigs[i];
+                if (!c.isFallen) {
+                    // Direção ideal: Tangente ao círculo (sentido anti-horário)
+                    // Posição (x, z) -> Tangente (-z, x)
+                    const tangent = new THREE.Vector3(-e.position.z, 0, e.position.x).normalize();
+
+                    // Manter no centro da pista (midRadius)
+                    const midRadius = (TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS) / 2;
+                    const distToCenter = new THREE.Vector2(e.position.x, e.position.z).length();
+                    const radialDir = new THREE.Vector3(e.position.x, 0, e.position.z).normalize();
+                    const correction = radialDir.multiplyScalar((midRadius - distToCenter) * 0.05);
+
+                    const targetVel = tangent.add(correction).normalize();
+                    c.vel.addScaledVector(targetVel, c.accel);
+                }
+            });
         }
 
-        // IA Simples
-        if (!config.enemy.isFallen) {
-            const target = new THREE.Vector3().subVectors(player.position, enemy.position).normalize();
-            config.enemy.vel.addScaledVector(target, config.enemy.accel);
-        }
+        const allBlades = [{obj: player, c: playerConfig, ui: 'player-ui'}, ...enemies.map((e, i) => ({obj: e, c: enemyConfigs[i], ui: null}))];
 
-        [player, enemy].forEach((obj, i) => {
-            const char = i === 0 ? 'player' : 'enemy';
-            const c = config[char];
-
+        allBlades.forEach(({obj, c}) => {
             obj.position.x += c.vel.x;
             obj.position.y += c.vel.y;
             obj.position.z += c.vel.z;
@@ -724,25 +813,41 @@
             c.vel.x *= friction;
             c.vel.z *= friction;
 
+            // Restrição de Pista (Ring boundaries)
+            const dist = new THREE.Vector2(obj.position.x, obj.position.z).length();
+            if (dist < TRACK_INNER_RADIUS || dist > TRACK_OUTER_RADIUS) {
+                c.isFallen = true;
+                c.stamina = 0;
+            }
+
+            // Lógica de Voltas
+            const currentAngle = Math.atan2(obj.position.z, obj.position.x);
+            if (c.lastAngle !== undefined) {
+                let diff = currentAngle - c.lastAngle;
+                if (diff < -Math.PI) diff += Math.PI * 2;
+                if (diff > Math.PI) diff -= Math.PI * 2;
+                c.angle += diff;
+
+                // 1 volta = 2*PI. Se cruzar a linha (ângulo 0 de volta), conta volta.
+                // Na verdade, basta contar o acumulado de ângulo.
+                c.laps = Math.floor(Math.abs(c.angle) / (Math.PI * 2));
+            }
+            c.lastAngle = currentAngle;
+
             if (!c.isFallen) {
-                c.stamina -= (char === 'player' ? 0.03 : 0.04);
+                c.stamina -= (obj === player ? 0.015 : 0.02);
 
                 // Rotação sincronizada com a estabilidade (stamina)
                 c.rotationSpeed = (c.stamina / 100) * 3.5;
                 obj.rotation.y += c.rotationSpeed;
 
-                // Wobble natural: inversamente proporcional à velocidade de rotação
-                // Começa a ser notável apenas quando a velocidade cai bastante
+                // Wobble natural
                 const baseWobble = Math.pow(Math.max(0, 1.2 - c.rotationSpeed), 2) * 0.5;
-
-                // O wobble de impacto decai gradualmente
                 c.hitWobble *= 0.95;
-
-                // O wobble total suavizado
                 const targetWobble = baseWobble + c.hitWobble;
                 c.wobble = THREE.MathUtils.lerp(c.wobble, targetWobble, 0.08);
 
-                const t = Date.now() * 0.01; // Velocidade da precessão
+                const t = Date.now() * 0.01;
                 obj.rotation.x = (c.vel.z * 1.1) + Math.sin(t) * c.wobble;
                 obj.rotation.z = (-c.vel.x * 1.1) + Math.cos(t) * c.wobble;
 
@@ -769,46 +874,36 @@
 
         checkCollision();
 
-        const pStamina = Math.max(0, config.player.stamina);
-        const eStamina = Math.max(0, config.enemy.stamina);
-
+        // Atualizar Stamina Player e UI
+        const pStamina = Math.max(0, playerConfig.stamina);
         const pBar = document.getElementById('player-stamina');
-        const eBar = document.getElementById('enemy-stamina');
+        if (pBar) {
+            pBar.style.width = pStamina + '%';
+            pBar.style.background = pStamina < 30 ? '#ff3300' : '#00d2ff';
+        }
 
-        pBar.style.width = pStamina + '%';
-        eBar.style.width = eStamina + '%';
+        // Para simplificar a corrida, o player-ui segue o player
+        const playerUI = document.getElementById('player-ui');
+        if (playerUI && player) {
+            const vector = new THREE.Vector3();
+            player.getWorldPosition(vector);
+            vector.y += 2.2;
+            vector.project(camera);
+            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+            playerUI.style.transform = `translate(-50%, -50%)`;
+            playerUI.style.left = x + 'px';
+            playerUI.style.top = y + 'px';
+            playerUI.style.display = gameStarted ? 'block' : 'none';
+        }
+        // Esconder enemy-ui (não usado agora com múltiplos inimigos ou simplificado)
+        document.getElementById('enemy-ui').style.display = 'none';
 
-        // Feedback visual de pouca estabilidade
-        pBar.style.background = pStamina < 30 ? '#ff3300' : '#00d2ff';
-        pBar.style.boxShadow = pStamina < 30 ? '0 0 15px #ff3300' : '0 0 10px #00d2ff';
-
-        eBar.style.background = eStamina < 30 ? '#ff3300' : '#ff416c';
-        eBar.style.boxShadow = eStamina < 30 ? '0 0 15px #ff3300' : '0 0 10px #ff416c';
-
-        // Atualizar UI flutuante
-        if (config.player && !config.player.isFallen) {
-            SoundManager.updateSpin(config.player.rotationSpeed);
+        if (playerConfig && !playerConfig.isFallen) {
+            SoundManager.updateSpin(playerConfig.rotationSpeed);
         } else {
             SoundManager.stopSpin();
         }
-
-        [player, enemy].forEach((obj, i) => {
-            if (!obj) return;
-            const char = i === 0 ? 'player' : 'enemy';
-            const ui = document.getElementById(char + '-ui');
-            if (ui) {
-                const vector = new THREE.Vector3();
-                obj.getWorldPosition(vector);
-                vector.y += 2.2;
-                vector.project(camera);
-                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
-                const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
-                ui.style.transform = `translate(-50%, -50%)`;
-                ui.style.left = x + 'px';
-                ui.style.top = y + 'px';
-                ui.style.display = gameStarted ? 'block' : 'none';
-            }
-        });
 
         if (!resultPending) checkGameOver();
 
@@ -832,20 +927,35 @@
     }
 
     function checkGameOver() {
-        const pDist = new THREE.Vector2(player.position.x, player.position.z).length();
-        const eDist = new THREE.Vector2(enemy.position.x, enemy.position.z).length();
-
+        const LAPS_TO_WIN = 3;
         let status = "";
-        if (pDist > ARENA_RADIUS) status = "SAISTE DO CÍRCULO!";
-        else if (eDist > ARENA_RADIUS) status = "RIVAL EXPULSO!";
-        else if (config.player.isFallen) status = "PEÃO PAROU!";
-        else if (config.enemy.isFallen) status = "RIVAL PAROU!";
+        let win = false;
+
+        const allEnemiesFallen = enemyConfigs.every(c => c.isFallen);
+
+        if (playerConfig.isFallen) {
+            status = "SEU PEÃO SAIU DA PISTA OU PAROU!";
+            win = false;
+        } else if (playerConfig.laps >= LAPS_TO_WIN) {
+            status = "VOCÊ VENCEU A CORRIDA!";
+            win = true;
+        } else if (allEnemiesFallen) {
+            status = "TODOS OS RIVAIS FORAM DERROTADOS!";
+            win = true;
+        } else {
+            enemies.forEach((e, i) => {
+                if (enemyConfigs[i].laps >= LAPS_TO_WIN) {
+                    status = "UM RIVAL VENCEU A CORRIDA!";
+                    win = false;
+                }
+            });
+        }
 
         if (status !== "") {
             resultPending = true;
             setTimeout(() => {
+                if (!resultPending) return;
                 gameOver = true;
-                const win = status.includes("RIVAL");
                 if (win) SoundManager.playWin(); else SoundManager.playLoss();
                 const st = document.getElementById('status-text');
                 st.innerHTML = `<h2>${win ? 'VITÓRIA' : 'DERROTA'}</h2><p>${status}</p>`;
