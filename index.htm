@@ -229,13 +229,15 @@
     let sparks = [];
     let cameraShake = 0;
     let cameraZoom = 1.0;
-    const CAMERA_OFFSET = new THREE.Vector3(0, 24, 22);
+    const CAMERA_OFFSET = new THREE.Vector3(0, 40, 35);
 
     let joystick = { x: 0, y: 0, active: false };
     const JOYSTICK_MAX_RADIUS = 50;
 
-    const TRACK_INNER_RADIUS = 18;
-    const TRACK_OUTER_RADIUS = 30;
+    const TRACK_INNER_RADIUS = 40;
+    const TRACK_OUTER_RADIUS = 70;
+    const TRACK_SCALE_X = 1.6;
+    const TRACK_SCALE_Z = 1.0;
     const ARENA_RADIUS = TRACK_OUTER_RADIUS; // Para compatibilidade
     const RING_RADIUS = 1.65;
     const RING_HEIGHT = 1.0;
@@ -422,9 +424,9 @@
         // Chão amplo (Terra)
         const dirtTex = loader.load("https://dl.dropbox.com/scl/fi/gdiu7zb9234a8jm68z7f3/textura-de-terra3.png?rlkey=li8ncb3e8px530q9kjuu6t7e2&st=jeg9nzvl&dl=0");
         dirtTex.wrapS = dirtTex.wrapT = THREE.RepeatWrapping;
-        dirtTex.repeat.set(80, 80);
+        dirtTex.repeat.set(150, 150);
 
-        const floorGeo = new THREE.PlaneGeometry(1000, 1000);
+        const floorGeo = new THREE.PlaneGeometry(2000, 2000);
         const floorMat = new THREE.MeshPhongMaterial({ map: dirtTex, shininess: 5 });
         const floor = new THREE.Mesh(floorGeo, floorMat);
         floor.rotation.x = -Math.PI/2;
@@ -440,6 +442,7 @@
         const arenaFloorMat = new THREE.MeshPhongMaterial({ map: cementTex, shininess: 10, side: THREE.DoubleSide });
         const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
         arenaFloor.rotation.x = -Math.PI/2;
+        arenaFloor.scale.set(TRACK_SCALE_X, TRACK_SCALE_Z, 1);
         arenaFloor.position.y = 0.01;
         arenaFloor.receiveShadow = true;
         scene.add(arenaFloor);
@@ -451,20 +454,22 @@
 
         const innerRing = new THREE.Mesh(innerRingGeo, ringMat);
         innerRing.rotation.x = -Math.PI/2;
+        innerRing.scale.set(TRACK_SCALE_X, TRACK_SCALE_Z, 1);
         innerRing.position.y = 0.02;
         scene.add(innerRing);
 
         const outerRing = new THREE.Mesh(outerRingGeo, ringMat);
         outerRing.rotation.x = -Math.PI/2;
+        outerRing.scale.set(TRACK_SCALE_X, TRACK_SCALE_Z, 1);
         outerRing.position.y = 0.02;
         scene.add(outerRing);
 
         // Linha de Largada
-        const startLineGeo = new THREE.PlaneGeometry(TRACK_OUTER_RADIUS - TRACK_INNER_RADIUS, 1);
+        const startLineGeo = new THREE.PlaneGeometry(TRACK_OUTER_RADIUS - TRACK_INNER_RADIUS, 3);
         const startLineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
         const startLine = new THREE.Mesh(startLineGeo, startLineMat);
         startLine.rotation.x = -Math.PI/2;
-        startLine.position.set((TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS)/2, 0.03, 0);
+        startLine.position.set(((TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS)/2) * TRACK_SCALE_X, 0.03, 0);
         scene.add(startLine);
 
         window.addEventListener('keydown', e => keys[e.key] = true);
@@ -648,8 +653,9 @@
 
     function resetPositions() {
         const midRadius = (TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS) / 2;
+        const startX = midRadius * TRACK_SCALE_X;
 
-        player.position.set(midRadius, 0, -2);
+        player.position.set(startX, 0, -5);
         player.rotation.set(0,0,0);
         playerConfig.vel.set(0,0,0);
         playerConfig.stamina = 100;
@@ -658,10 +664,11 @@
         playerConfig.hitWobble = 0;
         playerConfig.laps = 0;
         playerConfig.angle = 0;
+        playerConfig.lastAngle = undefined;
 
         enemies.forEach((e, i) => {
-            const offset = (i + 1) * 2;
-            e.position.set(midRadius, 0, offset);
+            const offset = (i + 1) * 5;
+            e.position.set(startX, 0, offset);
             e.rotation.set(0,0,0);
             const c = enemyConfigs[i];
             c.vel.set(0,0,0);
@@ -671,6 +678,7 @@
             c.hitWobble = 0;
             c.laps = 0;
             c.angle = 0;
+            c.lastAngle = undefined;
         });
 
         gameOver = false;
@@ -753,15 +761,14 @@
             enemies.forEach((e, i) => {
                 const c = enemyConfigs[i];
                 if (!c.isFallen) {
-                    // Direção ideal: Tangente ao círculo (sentido anti-horário)
-                    // Posição (x, z) -> Tangente (-z, x)
-                    const tangent = new THREE.Vector3(-e.position.z, 0, e.position.x).normalize();
+                    // Direção ideal: Tangente à elipse
+                    const tangent = new THREE.Vector3(-e.position.z * TRACK_SCALE_X, 0, e.position.x / TRACK_SCALE_X).normalize();
 
-                    // Manter no centro da pista (midRadius)
+                    // Manter no centro da pista
                     const midRadius = (TRACK_INNER_RADIUS + TRACK_OUTER_RADIUS) / 2;
-                    const distToCenter = new THREE.Vector2(e.position.x, e.position.z).length();
+                    const effectiveDist = new THREE.Vector2(e.position.x / TRACK_SCALE_X, e.position.z / TRACK_SCALE_Z).length();
                     const radialDir = new THREE.Vector3(e.position.x, 0, e.position.z).normalize();
-                    const correction = radialDir.multiplyScalar((midRadius - distToCenter) * 0.05);
+                    const correction = radialDir.multiplyScalar((midRadius - effectiveDist) * 0.05);
 
                     const targetVel = tangent.add(correction).normalize();
                     c.vel.addScaledVector(targetVel, c.accel);
@@ -814,7 +821,7 @@
             c.vel.z *= friction;
 
             // Restrição de Pista (Ring boundaries)
-            const dist = new THREE.Vector2(obj.position.x, obj.position.z).length();
+            const dist = new THREE.Vector2(obj.position.x / TRACK_SCALE_X, obj.position.z / TRACK_SCALE_Z).length();
             if (dist < TRACK_INNER_RADIUS || dist > TRACK_OUTER_RADIUS) {
                 c.isFallen = true;
                 c.stamina = 0;
