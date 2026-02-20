@@ -203,15 +203,13 @@
         <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">VOCÊ</div>
         <div class="stat-bar"><div id="player-stamina" class="fill"></div></div>
     </div>
-    <div id="enemy-ui" class="floating-ui">
-        <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">RIVAL</div>
-        <div class="stat-bar"><div id="enemy-stamina" class="fill"></div></div>
+    <div id="level-ui" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: #f1c40f; font-weight: 900; font-size: 1.5rem; text-shadow: 0 0 10px rgba(0,0,0,0.8); display: none; z-index: 10; letter-spacing: 2px;">
+        NÍVEL 1
     </div>
 </div>
 
 <div id="msg" class="overlay">
     <div id="status-text"></div>
-    <button class="main-btn" style="margin-top: 20px;" onclick="resetGame()">REVANCHE</button>
 </div>
 
 <div id="joystick-container">
@@ -222,6 +220,7 @@
 
 <script>
     let scene, camera, renderer, player, enemies = [];
+    let currentLevel = 1;
     let keys = {};
     let gameOver = false;
     let gameStarted = false;
@@ -255,8 +254,12 @@
     let enemyConfigs = [];
 
 
-    const sparkGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
-    const sparkMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+    const sparkGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    const sparkMat = new THREE.MeshStandardMaterial({
+        color: 0xffaa00,
+        emissive: 0xff5500,
+        emissiveIntensity: 5
+    });
 
     const SoundManager = {
         ctx: null,
@@ -285,17 +288,33 @@
 
         playHit() {
             if (!this.ctx) return;
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(150, this.ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
-            osc.connect(gain);
-            gain.connect(this.mainGain);
-            osc.start();
-            osc.stop(this.ctx.currentTime + 0.1);
+            const t = this.ctx.currentTime;
+            const freq = 150 + Math.random() * 100;
+
+            const osc1 = this.ctx.createOscillator();
+            const gain1 = this.ctx.createGain();
+            osc1.type = 'sawtooth';
+            osc1.frequency.setValueAtTime(freq, t);
+            osc1.frequency.exponentialRampToValueAtTime(freq * 0.5, t + 0.15);
+            gain1.gain.setValueAtTime(0.3, t);
+            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+            osc1.connect(gain1);
+            gain1.connect(this.mainGain);
+
+            const osc2 = this.ctx.createOscillator();
+            const gain2 = this.ctx.createGain();
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(freq * 4, t);
+            osc2.frequency.exponentialRampToValueAtTime(freq * 2, t + 0.1);
+            gain2.gain.setValueAtTime(0.2, t);
+            gain2.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+            osc2.connect(gain2);
+            gain2.connect(this.mainGain);
+
+            osc1.start(t);
+            osc1.stop(t + 0.15);
+            osc2.start(t);
+            osc2.stop(t + 0.1);
         },
 
         playStart() {
@@ -357,15 +376,21 @@
         constructor(position) {
             this.mesh = new THREE.Mesh(sparkGeo, sparkMat);
             this.mesh.position.copy(position);
-            this.velocity = new THREE.Vector3((Math.random()-0.5)*0.3, Math.random()*0.3, (Math.random()-0.5)*0.3);
+            const force = 0.4 + Math.random() * 0.5;
+            this.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * force,
+                Math.random() * force * 0.7,
+                (Math.random() - 0.5) * force
+            );
             this.life = 1.0;
+            this.mesh.scale.setScalar(0.5 + Math.random() * 1.5);
             scene.add(this.mesh);
         }
         update() {
             this.mesh.position.add(this.velocity);
-            this.velocity.y -= 0.015;
-            this.life -= 0.05;
-            this.mesh.scale.setScalar(this.life);
+            this.velocity.y -= 0.02;
+            this.life -= 0.04;
+            this.mesh.scale.setScalar(this.life * (0.5 + Math.random() * 1.5));
             if (this.life <= 0) { scene.remove(this.mesh); return false; }
             return true;
         }
@@ -509,10 +534,22 @@
         };
     }
 
-    function createBlade(color, shapeType = 'classic') {
+    function createBlade(color, shapeType = 'classic', isPlayer = false) {
         const pivot = new THREE.Group();
         const spinner = new THREE.Group();
         pivot.add(spinner);
+
+        // Criar UI para o peão (se for inimigo, já que o do player é fixo no HTML por enquanto, ou podemos unificar)
+        let ui = null;
+        if (!isPlayer) {
+            ui = document.createElement('div');
+            ui.className = 'floating-ui';
+            ui.innerHTML = `
+                <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">ADVERSÁRIO</div>
+                <div class="stat-bar"><div class="fill" style="background: #ff416c; box-shadow: 0 0 10px #ff416c;"></div></div>
+            `;
+            document.getElementById('ui').appendChild(ui);
+        }
 
         // Design detalhado e robusto
         const tipGeo = new THREE.ConeGeometry(0.5, 0.7, 16);
@@ -568,15 +605,26 @@
         line.castShadow = true;
         spinner.add(line);
 
-        return pivot;
+        return { pivot, ui };
     }
 
-    function startGame() {
-        SoundManager.init();
+    function startGame(isNextLevel = false) {
+        if (!isNextLevel) currentLevel = 1;
+        document.getElementById('level-ui').innerText = `NÍVEL ${currentLevel}`;
+        document.getElementById('level-ui').style.display = 'block';
+
+        try {
+            SoundManager.init();
+        } catch(e) { console.error("SoundManager init error:", e); }
         SoundManager.playStart();
 
-        if(player) scene.remove(player);
-        enemies.forEach(e => scene.remove(e));
+        if(player) {
+            scene.remove(player);
+        }
+        enemies.forEach(e => {
+            scene.remove(e.pivot);
+            if (e.ui) e.ui.remove();
+        });
         enemies = [];
         enemyConfigs = [];
 
@@ -584,17 +632,24 @@
         const shapeVal = document.getElementById('player-shape').value;
 
         playerConfig.color = parseInt(colorVal);
-        player = createBlade(playerConfig.color, shapeVal);
+        const pObj = createBlade(playerConfig.color, shapeVal, true);
+        player = pObj.pivot;
         scene.add(player);
 
-        const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60];
+        const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60, 0xe67e22, 0x16a085, 0x2980b9];
         const enemyShapes = ['classic', 'bolt', 'wave', 'saw'];
 
-        for(let i=0; i<3; i++) {
+        for(let i=0; i<currentLevel; i++) {
+            const eColor = enemyColors[i % enemyColors.length];
             const eShape = enemyShapes[Math.floor(Math.random() * enemyShapes.length)];
-            const eBlade = createBlade(enemyColors[i], eShape);
-            scene.add(eBlade);
-            enemies.push(eBlade);
+            const eBladeObj = createBlade(eColor, eShape, false);
+            scene.add(eBladeObj.pivot);
+
+            enemies.push({
+                pivot: eBladeObj.pivot,
+                ui: eBladeObj.ui
+            });
+
             enemyConfigs.push({
                 vel: new THREE.Vector3(0, 0, 0),
                 stamina: 100,
@@ -604,7 +659,7 @@
                 isFallen: false,
                 accel: 0.012 + Math.random() * 0.008,
                 mass: 5.0,
-                color: enemyColors[i]
+                color: eColor
             });
         }
 
@@ -641,7 +696,7 @@
     }
 
     function resetPositions() {
-        const spawnDist = ARENA_RADIUS * 0.6;
+        const spawnDist = 15; // Aproximar para combate imediato
 
         player.position.set(spawnDist, 0, 0);
         player.rotation.set(0,0,0);
@@ -654,9 +709,9 @@
 
         enemies.forEach((e, i) => {
             const angle = ((i + 1) / (enemies.length + 1)) * Math.PI * 2;
-            e.position.set(Math.cos(angle) * spawnDist, 0, Math.sin(angle) * spawnDist);
-            e.rotation.set(0,0,0);
-            if (e.children[0]) e.children[0].rotation.set(0,0,0);
+            e.pivot.position.set(Math.cos(angle) * spawnDist, 0, Math.sin(angle) * spawnDist);
+            e.pivot.rotation.set(0,0,0);
+            if (e.pivot.children[0]) e.pivot.children[0].rotation.set(0,0,0);
             const c = enemyConfigs[i];
             c.vel.set(0,0,0);
             c.stamina = 100;
@@ -675,11 +730,18 @@
     function resetGame() {
         document.getElementById('msg').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
+        document.getElementById('level-ui').style.display = 'none';
         gameStarted = false;
+        currentLevel = 1;
+    }
+
+    function nextLevel() {
+        currentLevel++;
+        startGame(true);
     }
 
     function checkCollision() {
-        const allBlades = [{mesh: player, cfg: playerConfig}, ...enemies.map((e, i) => ({mesh: e, cfg: enemyConfigs[i]}))];
+        const allBlades = [{mesh: player, cfg: playerConfig}, ...enemies.map((e, i) => ({mesh: e.pivot, cfg: enemyConfigs[i]}))];
 
         for (let i = 0; i < allBlades.length; i++) {
             for (let j = i + 1; j < allBlades.length; j++) {
@@ -710,7 +772,7 @@
                     b2.cfg.hitWobble += 0.15;
 
                     const mid = new THREE.Vector3().lerpVectors(b1.mesh.position, b2.mesh.position, 0.5);
-                    for(let k=0; k<5; k++) sparks.push(new Spark(mid));
+                    for(let k=0; k<15; k++) sparks.push(new Spark(mid));
                     SoundManager.playHit();
                 }
             }
@@ -761,13 +823,16 @@
                         target = new THREE.Vector3(0, 0, 0);
                     }
 
-                    const dir = new THREE.Vector3().subVectors(target, e.position).normalize();
+                    const dir = new THREE.Vector3().subVectors(target, e.pivot.position).normalize();
                     c.vel.addScaledVector(dir, c.accel);
                 }
             });
         }
 
-        const allBlades = [{obj: player, c: playerConfig, ui: 'player-ui'}, ...enemies.map((e, i) => ({obj: e, c: enemyConfigs[i], ui: null}))];
+        const allBlades = [
+            {obj: player, c: playerConfig, ui: document.getElementById('player-ui')},
+            ...enemies.map((e, i) => ({obj: e.pivot, c: enemyConfigs[i], ui: e.ui}))
+        ];
 
         allBlades.forEach(({obj, c}) => {
             obj.position.x += c.vel.x;
@@ -880,22 +945,28 @@
         }
 
 
-        // Para simplificar a corrida, o player-ui segue o player
-        const playerUI = document.getElementById('player-ui');
-        if (playerUI && player) {
-            const vector = new THREE.Vector3();
-            player.getWorldPosition(vector);
-            vector.y += 2.2;
-            vector.project(camera);
-            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
-            const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
-            playerUI.style.transform = `translate(-50%, -50%)`;
-            playerUI.style.left = x + 'px';
-            playerUI.style.top = y + 'px';
-            playerUI.style.display = gameStarted ? 'block' : 'none';
-        }
-        // Esconder enemy-ui (não usado agora com múltiplos inimigos ou simplificado)
-        document.getElementById('enemy-ui').style.display = 'none';
+        // Atualizar UIs flutuantes
+        allBlades.forEach(item => {
+            if (item.ui && item.obj) {
+                const vector = new THREE.Vector3();
+                item.obj.getWorldPosition(vector);
+                vector.y += 2.2;
+                vector.project(camera);
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+                item.ui.style.transform = `translate(-50%, -50%)`;
+                item.ui.style.left = x + 'px';
+                item.ui.style.top = y + 'px';
+                item.ui.style.display = gameStarted ? 'block' : 'none';
+
+                const fill = item.ui.querySelector('.fill');
+                if (fill) {
+                    const stam = Math.max(0, item.c.stamina);
+                    fill.style.width = stam + '%';
+                    fill.style.background = stam < 30 ? '#ff3300' : (item.ui.id === 'player-ui' ? '#00d2ff' : '#ff416c');
+                }
+            }
+        });
 
         if (playerConfig && !playerConfig.isFallen) {
             SoundManager.updateSpin(playerConfig.rotationSpeed);
@@ -952,10 +1023,20 @@
                 if (win) SoundManager.playWin(); else SoundManager.playLoss();
 
                 const st = document.getElementById('status-text');
-                st.innerHTML = `
-                    <h2 style="color: ${win ? '#2ecc71' : '#f1c40f'}">${win ? 'VOCÊ VENCEU!' : 'VOCÊ CAIU!'}</h2>
-                    <p style="font-size: 1.2rem;">${win ? 'O último peão em pé na arena!' : 'Seu peão parou de girar.'}</p>
+                const winContent = `
+                    <h2 style="color: #2ecc71">VOCÊ VENCEU O NÍVEL ${currentLevel}!</h2>
+                    <p style="font-size: 1.2rem;">Prepare-se para o próximo desafio!</p>
+                    <button class="main-btn" style="margin-top: 20px;" onclick="nextLevel()">PRÓXIMO NÍVEL</button>
                 `;
+                const lossContent = `
+                    <h2 style="color: #f1c40f">VOCÊ CAIU!</h2>
+                    <p style="font-size: 1.2rem;">Tente novamente o nível ${currentLevel}.</p>
+                    <button class="main-btn" style="margin-top: 20px;" onclick="startGame(true)">TENTAR NOVAMENTE</button>
+                `;
+
+                st.innerHTML = win ? winContent : lossContent;
+                st.innerHTML += `<br><button class="main-btn" style="margin-top: 10px; font-size: 1rem; padding: 10px 30px; background: #666; color: #fff;" onclick="resetGame()">SAIR</button>`;
+
                 document.getElementById('msg').style.display = 'flex';
                 resultPending = false;
             }, 2000);
