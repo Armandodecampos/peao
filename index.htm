@@ -767,12 +767,12 @@
 
                 if (keys['ArrowUp'] || keys['w']) playerConfig.vel.addScaledVector(tangent, a);
                 if (keys['ArrowDown'] || keys['s']) playerConfig.vel.addScaledVector(tangent, -a * 0.5); // Ré mais lenta
-                if (keys['ArrowLeft'] || keys['a']) playerConfig.vel.addScaledVector(radial, -a); // Para dentro
-                if (keys['ArrowRight'] || keys['d']) playerConfig.vel.addScaledVector(radial, a); // Para fora
+                if (keys['ArrowLeft'] || keys['a']) playerConfig.vel.addScaledVector(radial, a); // Para fora (esquerda)
+                if (keys['ArrowRight'] || keys['d']) playerConfig.vel.addScaledVector(radial, -a); // Para dentro (direita)
 
                 if (joystick.active) {
                     playerConfig.vel.addScaledVector(tangent, -joystick.y * a);
-                    playerConfig.vel.addScaledVector(radial, joystick.x * a);
+                    playerConfig.vel.addScaledVector(radial, -joystick.x * a);
                 }
             }
 
@@ -953,8 +953,8 @@
 
         // Update Camera to follow player (Mario Kart style)
         if (player) {
-            const camDist = 35 * cameraZoom;
-            const camHeight = 15 * cameraZoom;
+            const camDist = 25 * cameraZoom;
+            const camHeight = 10 * cameraZoom;
 
             // Calculate tangent as "forward" direction (Counter-Clockwise)
             const tangent = new THREE.Vector3(-player.position.z * TRACK_SCALE_X, 0, player.position.x / TRACK_SCALE_X).normalize();
