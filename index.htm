@@ -149,6 +149,31 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
         }
 
+        .action-btn {
+            position: absolute;
+            bottom: 60px;
+            right: 60px;
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            z-index: 10;
+            backdrop-filter: blur(5px);
+            user-select: none;
+            touch-action: none;
+            cursor: pointer;
+        }
+        .action-btn:active {
+            transform: scale(0.9);
+            background: rgba(255, 255, 255, 0.4);
+        }
+
         #msg { display: none; text-align: center; }
 
         #countdown-overlay {
@@ -217,6 +242,8 @@
         <div id="joystick-knob"></div>
     </div>
 </div>
+
+<div id="jump-button" class="action-btn">PULAR</div>
 
 <script>
     let scene, camera, renderer, player, enemies = [];
@@ -351,6 +378,22 @@
             osc.type = 'sine';
             osc.frequency.setValueAtTime(600, t);
             osc.frequency.exponentialRampToValueAtTime(1200, t + 0.2);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+            osc.connect(gain);
+            gain.connect(this.mainGain);
+            osc.start(t);
+            osc.stop(t + 0.2);
+        },
+
+        playJump() {
+            if (!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(150, t);
+            osc.frequency.exponentialRampToValueAtTime(400, t + 0.2);
             gain.gain.setValueAtTime(0.2, t);
             gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
             osc.connect(gain);
@@ -532,6 +575,7 @@
         window.addEventListener('keyup', e => keys[e.key] = false);
 
         initJoystick();
+        initJumpButton();
 
         window.addEventListener('wheel', (e) => {
             cameraZoom += e.deltaY * 0.001;
@@ -582,6 +626,17 @@
             joystick.y = 0;
             knob.style.transform = `translate(0px, 0px)`;
         };
+    }
+
+    function initJumpButton() {
+        const btn = document.getElementById('jump-button');
+        btn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            requestJump();
+        });
+        btn.addEventListener('mousedown', (e) => {
+            requestJump();
+        });
     }
 
     function createBlade(color, shapeType = 'classic', isPlayer = false) {
@@ -722,6 +777,7 @@
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('ui').style.display = 'block';
         document.getElementById('joystick-container').style.display = 'block';
+        document.getElementById('jump-button').style.display = 'flex';
         gameStarted = true;
 
         startCountdown();
@@ -779,6 +835,15 @@
         document.getElementById('msg').style.display = 'none';
         sparks.forEach(s => scene.remove(s.mesh));
         sparks = [];
+    }
+
+    function requestJump() {
+        if (!player || playerConfig.isFallen || !raceActive) return;
+
+        if (player.lastGroundLevel !== undefined && Math.abs(player.position.y - player.lastGroundLevel) < 0.3) {
+            playerConfig.vel.y = 0.5;
+            SoundManager.playJump();
+        }
     }
 
     function resetGame() {
@@ -890,6 +955,10 @@
                     playerConfig.vel.addScaledVector(forward, -joystick.y * a);
                     playerConfig.vel.addScaledVector(right, joystick.x * a);
                 }
+
+                if (keys[' ']) {
+                    requestJump();
+                }
             }
 
             // IA de Batalha
@@ -934,6 +1003,20 @@
 
                     const dir = new THREE.Vector3().subVectors(target, e.pivot.position).normalize();
                     c.vel.addScaledVector(dir, c.accel);
+
+                    // Força de Separação (Evitar bater em aliados)
+                    const separationForce = new THREE.Vector3();
+                    const separationDist = 10;
+                    enemies.forEach((other, j) => {
+                        if (i === j) return;
+                        const dist = e.pivot.position.distanceTo(other.pivot.position);
+                        if (dist < separationDist) {
+                            const diff = new THREE.Vector3().subVectors(e.pivot.position, other.pivot.position);
+                            diff.normalize().divideScalar(dist);
+                            separationForce.add(diff);
+                        }
+                    });
+                    c.vel.addScaledVector(separationForce, 0.015);
                 }
             });
         }
@@ -970,6 +1053,7 @@
                 const level = trackHeight + (p.r * sinTheta - p.h * cosTheta);
                 if (level > currentGroundLevel) currentGroundLevel = level;
             });
+            obj.lastGroundLevel = currentGroundLevel;
 
             // Gravidade e Colisão com o Chão
             if (obj.position.y > currentGroundLevel) {
