@@ -321,7 +321,7 @@
             </div>
         </div>
     </div>
-    <button class="main-btn" onclick="startGame()">INICIAR BATALHA</button>
+    <button id="btn-start-battle" class="main-btn" onclick="startGame()">INICIAR BATALHA</button>
 </div>
 
 <div id="ui">
@@ -766,6 +766,18 @@
 
         document.getElementById('btn-add-resistencia').disabled = availablePoints <= 0;
         document.getElementById('btn-sub-resistencia').disabled = playerSkills.resistencia <= 0;
+
+        // Obrigatoriedade de distribuir pontos no início
+        const startBtn = document.getElementById('btn-start-battle');
+        if (currentLevel === 1 && availablePoints > 0) {
+            startBtn.disabled = true;
+            startBtn.style.opacity = "0.5";
+            startBtn.innerText = "DISTRIBUA OS PONTOS";
+        } else {
+            startBtn.disabled = false;
+            startBtn.style.opacity = "1";
+            startBtn.innerText = "INICIAR BATALHA";
+        }
     }
 
     function modifySkill(skill, delta) {
@@ -1036,8 +1048,8 @@
         playerConfig.collisionPoints = pObj.config.collisionPoints;
         playerConfig.mass = pObj.config.mass;
 
-        // Aplica Habilidades
-        playerConfig.accel = pObj.config.accel * (1 + playerSkills.velocidade * 0.2);
+        // Aplica Habilidades (Impacto reduzido para 5% por ponto)
+        playerConfig.accel = pObj.config.accel * (1 + playerSkills.velocidade * 0.05);
 
         const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60, 0xe67e22, 0x16a085, 0x2980b9];
 
@@ -1197,9 +1209,9 @@
                     const pushFactor = 0.05 + (relVel * 0.3);
                     let power = (b1.cfg.rotationSpeed + b2.cfg.rotationSpeed) * pushFactor;
 
-                    // Aplica Força se for o player envolvido
+                    // Aplica Força se for o player envolvido (Impacto reduzido para 5% por ponto)
                     if (b1.mesh === player || b2.mesh === player) {
-                        power *= (1 + playerSkills.forca * 0.2);
+                        power *= (1 + playerSkills.forca * 0.05);
                     }
 
                     b1.cfg.vel.addScaledVector(forceDir, power / b1.cfg.mass);
@@ -1214,9 +1226,9 @@
                     let damage1 = baseDamage;
                     let damage2 = baseDamage;
 
-                    // Aplica Resistência apenas se o envolvido for o player
-                    if (b1.mesh === player) damage1 *= Math.max(0.2, 1 - playerSkills.resistencia * 0.1);
-                    if (b2.mesh === player) damage2 *= Math.max(0.2, 1 - playerSkills.resistencia * 0.1);
+                    // Aplica Resistência apenas se o envolvido for o player (Impacto reduzido para 3% por ponto)
+                    if (b1.mesh === player) damage1 *= Math.max(0.1, 1 - playerSkills.resistencia * 0.03);
+                    if (b2.mesh === player) damage2 *= Math.max(0.1, 1 - playerSkills.resistencia * 0.03);
 
                     b1.cfg.stamina -= damage1;
                     b2.cfg.stamina -= damage2;
@@ -1407,12 +1419,14 @@
 
             if (!c.isFallen) {
                 let passiveDecay = (obj === player ? 0.015 : 0.02);
-                if (obj === player) passiveDecay *= Math.max(0.2, 1 - playerSkills.resistencia * 0.05);
+                // Impacto da resistência na stamina reduzido para 1% por ponto
+                if (obj === player) passiveDecay *= Math.max(0.1, 1 - playerSkills.resistencia * 0.01);
                 c.stamina -= passiveDecay;
 
                 // Rotação sincronizada com a estabilidade (stamina)
                 let baseRotSpeed = 3.5;
-                if (obj === player) baseRotSpeed *= (1 + playerSkills.velocidade * 0.1);
+                // Impacto da velocidade na rotação reduzido para 2% por ponto
+                if (obj === player) baseRotSpeed *= (1 + playerSkills.velocidade * 0.02);
                 c.rotationSpeed = (c.stamina / 100) * baseRotSpeed;
                 if (spinner) spinner.rotation.y += c.rotationSpeed;
 
