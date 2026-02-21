@@ -712,7 +712,8 @@
                 isFallen: false,
                 accel: 0.012 + Math.random() * 0.008,
                 mass: 5.0,
-                color: eColor
+                color: eColor,
+                perceivedHearts: new Map()
             });
         }
 
@@ -850,7 +851,13 @@
     function animate() {
         requestAnimationFrame(animate);
         sparks = sparks.filter(s => s.update());
-        hearts = hearts.filter(h => h.update());
+        hearts = hearts.filter(h => {
+            const active = h.update();
+            if (!active) {
+                enemyConfigs.forEach(c => c.perceivedHearts.delete(h));
+            }
+            return active;
+        });
 
         if (raceActive && Date.now() - lastHeartSpawn > 10000 && hearts.length < 3) {
             hearts.push(new Heart());
@@ -889,27 +896,40 @@
             enemies.forEach((e, i) => {
                 const c = enemyConfigs[i];
                 if (!c.isFallen) {
-                    // Perseguir o coração mais próximo, jogador ou centro
-                    let target;
+                    let target = null;
 
-                    let nearestHeart = null;
-                    let minDist = Infinity;
-                    hearts.forEach(h => {
-                        if (h.active) {
-                            const d = e.pivot.position.distanceTo(h.mesh.position);
-                            if (d < minDist) {
-                                minDist = d;
-                                nearestHeart = h;
+                    // Só procura corações se estiver "ferido" (stamina < 70)
+                    if (c.stamina < 70) {
+                        let nearestHeart = null;
+                        let minDist = Infinity;
+
+                        hearts.forEach(h => {
+                            if (h.active) {
+                                // Verifica se já tomou uma decisão sobre este coração
+                                if (!c.perceivedHearts.has(h)) {
+                                    // 70% de chance de "ver" o coração
+                                    c.perceivedHearts.set(h, Math.random() < 0.7);
+                                }
+
+                                if (c.perceivedHearts.get(h)) {
+                                    const d = e.pivot.position.distanceTo(h.mesh.position);
+                                    if (d < minDist) {
+                                        minDist = d;
+                                        nearestHeart = h;
+                                    }
+                                }
                             }
-                        }
-                    });
+                        });
 
-                    if (nearestHeart) {
-                        target = nearestHeart.mesh.position;
-                    } else if (!playerConfig.isFallen) {
-                        target = player.position;
-                    } else {
-                        target = new THREE.Vector3(0, 0, 0);
+                        if (nearestHeart) target = nearestHeart.mesh.position;
+                    }
+
+                    if (!target) {
+                        if (!playerConfig.isFallen) {
+                            target = player.position;
+                        } else {
+                            target = new THREE.Vector3(0, 0, 0);
+                        }
                     }
 
                     const dir = new THREE.Vector3().subVectors(target, e.pivot.position).normalize();
