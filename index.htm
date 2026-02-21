@@ -219,6 +219,36 @@
             overflow: hidden;
             pointer-events: auto;
         }
+        .skill-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            width: 320px;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.05);
+            padding: 8px 15px;
+            border-radius: 10px;
+            pointer-events: auto;
+        }
+        .skill-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 5px;
+            border: 1px solid white;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .skill-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+        .skill-btn:disabled {
+            opacity: 0.2;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -236,19 +266,59 @@
     <h1>BATTLE BLADES 3D</h1>
     <p style="letter-spacing: 2px;">ARENA DE BATALHA</p>
     <div style="margin: 20px 0; display: flex; flex-direction: column; align-items: center; gap: 15px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <label style="font-weight: bold; letter-spacing: 2px;">COR:</label>
-            <input type="color" id="player-color" value="#2980b9" oninput="updatePreviewColor()" style="width: 60px; height: 40px; border: 2px solid #fff; border-radius: 5px; background: none; cursor: pointer; pointer-events: auto;">
+        <div style="display: flex; gap: 30px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label style="font-weight: bold; letter-spacing: 2px;">COR:</label>
+                <input type="color" id="player-color" value="#2980b9" oninput="updatePreviewColor()" style="width: 60px; height: 40px; border: 2px solid #fff; border-radius: 5px; background: none; cursor: pointer; pointer-events: auto;">
+            </div>
+
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                <label style="font-weight: bold; letter-spacing: 2px;">PONTOS DISPONÍVEIS:</label>
+                <span id="available-points" style="font-size: 1.5rem; color: #f1c40f; font-weight: 900;">3</span>
+            </div>
         </div>
 
-        <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 10px;">
-            <label style="font-weight: bold; letter-spacing: 2px;">ESCOLHA SEU PEÃO:</label>
-            <div style="display: flex; align-items: center; gap: 20px;">
-                <button class="nav-btn" onclick="changeShape(-1)">&#10094;</button>
-                <div id="preview-container"></div>
-                <button class="nav-btn" onclick="changeShape(1)">&#10095;</button>
+        <div style="display: flex; gap: 40px; align-items: flex-start;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                <label style="font-weight: bold; letter-spacing: 2px;">ESCOLHA SEU PEÃO:</label>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <button class="nav-btn" onclick="changeShape(-1)">&#10094;</button>
+                    <div id="preview-container"></div>
+                    <button class="nav-btn" onclick="changeShape(1)">&#10095;</button>
+                </div>
+                <div id="shape-name" style="font-weight: 900; letter-spacing: 2px; color: #f1c40f; text-transform: uppercase;">PADRÃO</div>
             </div>
-            <div id="shape-name" style="font-weight: 900; letter-spacing: 2px; color: #f1c40f; text-transform: uppercase;">PADRÃO</div>
+
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                <label style="font-weight: bold; letter-spacing: 2px;">HABILIDADES:</label>
+
+                <div class="skill-row">
+                    <span style="font-weight: bold;">FORÇA</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="btn-sub-forca" class="skill-btn" onclick="modifySkill('forca', -1)">-</button>
+                        <span id="val-forca" style="width: 20px; text-align: center; font-weight: 900;">0</span>
+                        <button id="btn-add-forca" class="skill-btn" onclick="modifySkill('forca', 1)">+</button>
+                    </div>
+                </div>
+
+                <div class="skill-row">
+                    <span style="font-weight: bold;">VELOCIDADE</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="btn-sub-velocidade" class="skill-btn" onclick="modifySkill('velocidade', -1)">-</button>
+                        <span id="val-velocidade" style="width: 20px; text-align: center; font-weight: 900;">0</span>
+                        <button id="btn-add-velocidade" class="skill-btn" onclick="modifySkill('velocidade', 1)">+</button>
+                    </div>
+                </div>
+
+                <div class="skill-row">
+                    <span style="font-weight: bold;">RESISTÊNCIA</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="btn-sub-resistencia" class="skill-btn" onclick="modifySkill('resistencia', -1)">-</button>
+                        <span id="val-resistencia" style="width: 20px; text-align: center; font-weight: 900;">0</span>
+                        <button id="btn-add-resistencia" class="skill-btn" onclick="modifySkill('resistencia', 1)">+</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <button class="main-btn" onclick="startGame()">INICIAR BATALHA</button>
@@ -423,6 +493,13 @@
         mass: 5.0,
         color: 0x2980b9
     };
+
+    let playerSkills = {
+        forca: 0,
+        velocidade: 0,
+        resistencia: 0
+    };
+    let availablePoints = 3;
 
     let enemyConfigs = [];
 
@@ -675,6 +752,34 @@
         try { SoundManager.playCollect(); } catch(e){}
     }
 
+    function updateSkillsUI() {
+        document.getElementById('available-points').innerText = availablePoints;
+        document.getElementById('val-forca').innerText = playerSkills.forca;
+        document.getElementById('val-velocidade').innerText = playerSkills.velocidade;
+        document.getElementById('val-resistencia').innerText = playerSkills.resistencia;
+
+        document.getElementById('btn-add-forca').disabled = availablePoints <= 0;
+        document.getElementById('btn-sub-forca').disabled = playerSkills.forca <= 0;
+
+        document.getElementById('btn-add-velocidade').disabled = availablePoints <= 0;
+        document.getElementById('btn-sub-velocidade').disabled = playerSkills.velocidade <= 0;
+
+        document.getElementById('btn-add-resistencia').disabled = availablePoints <= 0;
+        document.getElementById('btn-sub-resistencia').disabled = playerSkills.resistencia <= 0;
+    }
+
+    function modifySkill(skill, delta) {
+        if (delta > 0 && availablePoints > 0) {
+            playerSkills[skill]++;
+            availablePoints--;
+        } else if (delta < 0 && playerSkills[skill] > 0) {
+            playerSkills[skill]--;
+            availablePoints++;
+        }
+        updateSkillsUI();
+        try { SoundManager.playCollect(); } catch(e){}
+    }
+
     function updatePreviewColor() {
         updatePreview();
     }
@@ -895,8 +1000,9 @@
         return { pivot, ui, config };
     }
 
-    function startGame(isNextLevel = false) {
-        if (!isNextLevel) currentLevel = 1;
+    function startGame() {
+        // Agora startGame apenas inicia o jogo no nível atual definido.
+        // O reset para nível 1 acontece apenas em resetGame().
         document.getElementById('level-ui').innerText = `NÍVEL ${currentLevel}`;
         document.getElementById('level-ui').style.display = 'block';
 
@@ -929,7 +1035,9 @@
         playerConfig.collisionRadius = pObj.config.collisionRadius;
         playerConfig.collisionPoints = pObj.config.collisionPoints;
         playerConfig.mass = pObj.config.mass;
-        playerConfig.accel = pObj.config.accel;
+
+        // Aplica Habilidades
+        playerConfig.accel = pObj.config.accel * (1 + playerSkills.velocidade * 0.2);
 
         const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60, 0xe67e22, 0x16a085, 0x2980b9];
 
@@ -1040,11 +1148,19 @@
         document.getElementById('level-ui').style.display = 'none';
         gameStarted = false;
         currentLevel = 1;
+        playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
+        availablePoints = 3;
+        updateSkillsUI();
     }
 
     function nextLevel() {
         currentLevel++;
-        startGame(true);
+        availablePoints++;
+        updateSkillsUI();
+        document.getElementById('msg').style.display = 'none';
+        document.getElementById('start-screen').style.display = 'flex';
+        document.getElementById('level-ui').style.display = 'none';
+        gameStarted = false;
     }
 
     function checkCollision() {
@@ -1079,7 +1195,12 @@
                     const forceDir = new THREE.Vector3().subVectors(b1.mesh.position, b2.mesh.position).normalize();
                     const relVel = new THREE.Vector3().subVectors(b1.cfg.vel, b2.cfg.vel).length();
                     const pushFactor = 0.05 + (relVel * 0.3);
-                    const power = (b1.cfg.rotationSpeed + b2.cfg.rotationSpeed) * pushFactor;
+                    let power = (b1.cfg.rotationSpeed + b2.cfg.rotationSpeed) * pushFactor;
+
+                    // Aplica Força se for o player envolvido
+                    if (b1.mesh === player || b2.mesh === player) {
+                        power *= (1 + playerSkills.forca * 0.2);
+                    }
 
                     b1.cfg.vel.addScaledVector(forceDir, power / b1.cfg.mass);
                     b2.cfg.vel.addScaledVector(forceDir, -power / b2.cfg.mass);
@@ -1088,9 +1209,17 @@
                     b2.cfg.vel.y += 0.06;
                     if (b1.mesh === player || b2.mesh === player) cameraShake = 0.4;
 
-                    const damage = 1 + (relVel * 4);
-                    b1.cfg.stamina -= damage;
-                    b2.cfg.stamina -= damage;
+                    const baseDamage = 1 + (relVel * 4);
+
+                    let damage1 = baseDamage;
+                    let damage2 = baseDamage;
+
+                    // Aplica Resistência apenas se o envolvido for o player
+                    if (b1.mesh === player) damage1 *= Math.max(0.2, 1 - playerSkills.resistencia * 0.1);
+                    if (b2.mesh === player) damage2 *= Math.max(0.2, 1 - playerSkills.resistencia * 0.1);
+
+                    b1.cfg.stamina -= damage1;
+                    b2.cfg.stamina -= damage2;
 
                     b1.cfg.hitWobble += 0.15;
                     b2.cfg.hitWobble += 0.15;
@@ -1277,10 +1406,14 @@
             const spinner = obj.children[0];
 
             if (!c.isFallen) {
-                c.stamina -= (obj === player ? 0.015 : 0.02);
+                let passiveDecay = (obj === player ? 0.015 : 0.02);
+                if (obj === player) passiveDecay *= Math.max(0.2, 1 - playerSkills.resistencia * 0.05);
+                c.stamina -= passiveDecay;
 
                 // Rotação sincronizada com a estabilidade (stamina)
-                c.rotationSpeed = (c.stamina / 100) * 3.5;
+                let baseRotSpeed = 3.5;
+                if (obj === player) baseRotSpeed *= (1 + playerSkills.velocidade * 0.1);
+                c.rotationSpeed = (c.stamina / 100) * baseRotSpeed;
                 if (spinner) spinner.rotation.y += c.rotationSpeed;
 
                 // Wobble natural
@@ -1408,8 +1541,8 @@
                 const st = document.getElementById('status-text');
                 const winContent = `
                     <h2 style="color: #2ecc71">VOCÊ VENCEU O NÍVEL ${currentLevel}!</h2>
-                    <p style="font-size: 1.2rem;">Prepare-se para o próximo desafio!</p>
-                    <button class="main-btn" style="margin-top: 20px;" onclick="nextLevel()">PRÓXIMO NÍVEL</button>
+                    <p style="font-size: 1.2rem;">Você ganhou 1 ponto de habilidade!</p>
+                    <button class="main-btn" style="margin-top: 20px;" onclick="nextLevel()">DISTRIBUIR PONTOS</button>
                 `;
                 const lossContent = `
                     <h2 style="color: #f1c40f">VOCÊ CAIU!</h2>
@@ -1433,6 +1566,7 @@
     });
 
     init();
+    updateSkillsUI();
 </script>
 </body>
 </html>
