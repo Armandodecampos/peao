@@ -189,6 +189,36 @@
             text-shadow: 0 0 30px rgba(0,0,0,0.8);
             pointer-events: none;
         }
+
+        .nav-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid white;
+            color: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.1);
+        }
+        #preview-container {
+            width: 180px;
+            height: 180px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0.3) 100%);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            position: relative;
+            overflow: hidden;
+            pointer-events: auto;
+        }
     </style>
 </head>
 <body>
@@ -208,16 +238,17 @@
     <div style="margin: 20px 0; display: flex; flex-direction: column; align-items: center; gap: 15px;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <label style="font-weight: bold; letter-spacing: 2px;">COR:</label>
-            <input type="color" id="player-color" value="#2980b9" style="width: 60px; height: 40px; border: 2px solid #fff; border-radius: 5px; background: none; cursor: pointer;">
+            <input type="color" id="player-color" value="#2980b9" oninput="updatePreviewColor()" style="width: 60px; height: 40px; border: 2px solid #fff; border-radius: 5px; background: none; cursor: pointer; pointer-events: auto;">
         </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <label style="font-weight: bold; letter-spacing: 2px;">FORMATO:</label>
-            <select id="player-shape" style="padding: 8px 15px; border-radius: 10px; background: rgba(255,255,255,0.1); color: white; border: 1px solid white; cursor: pointer; outline: none;">
-                <option value="classic" style="color: black;">Padrão</option>
-                <option value="bolt" style="color: black;">Raio (Hexágono)</option>
-                <option value="wave" style="color: black;">Ondas (Torus)</option>
-                <option value="saw" style="color: black;">Serra (Dodecágono)</option>
-            </select>
+
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 10px;">
+            <label style="font-weight: bold; letter-spacing: 2px;">ESCOLHA SEU PEÃO:</label>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <button class="nav-btn" onclick="changeShape(-1)">&#10094;</button>
+                <div id="preview-container"></div>
+                <button class="nav-btn" onclick="changeShape(1)">&#10095;</button>
+            </div>
+            <div id="shape-name" style="font-weight: 900; letter-spacing: 2px; color: #f1c40f; text-transform: uppercase;">PADRÃO</div>
         </div>
     </div>
     <button class="main-btn" onclick="startGame()">INICIAR BATALHA</button>
@@ -246,7 +277,112 @@
 <div id="jump-button" class="action-btn">PULAR</div>
 
 <script>
+    const BLADE_CONFIGS = {
+        classic: {
+            name: "Padrão",
+            tip: { r: 0.5, h: 0.7 },
+            body: { rTop: 1.2, rBot: 0.6, h: 0.45 },
+            rings: [{ type: 'cylinder', r: 1.65, h: 0.4, segments: 32, y: 1.0 }],
+            top: { rTop: 0.7, rBot: 1.25, h: 0.15 },
+            collisionRadius: 1.65,
+            collisionPoints: [{ r: 1.65, h: 0.8 }, { r: 1.65, h: 1.2 }, { r: 0.7, h: 1.325 }],
+            mass: 5.0,
+            accel: 0.02
+        },
+        bolt: {
+            name: "Hexágono",
+            tip: { r: 0.5, h: 0.7 },
+            body: { rTop: 1.2, rBot: 0.6, h: 0.45 },
+            rings: [{ type: 'cylinder', r: 1.65, h: 0.4, segments: 6, y: 1.0 }],
+            top: { rTop: 0.7, rBot: 1.25, h: 0.15 },
+            collisionRadius: 1.65,
+            collisionPoints: [{ r: 1.65, h: 0.8 }, { r: 1.65, h: 1.2 }, { r: 0.7, h: 1.325 }],
+            mass: 5.0,
+            accel: 0.02
+        },
+        wave: {
+            name: "Ondas",
+            tip: { r: 0.5, h: 0.7 },
+            body: { rTop: 1.2, rBot: 0.6, h: 0.45 },
+            rings: [{ type: 'torus', r: 1.45, thickness: 0.2, segments: 50, y: 1.0 }],
+            top: { rTop: 0.7, rBot: 1.25, h: 0.15 },
+            collisionRadius: 1.65,
+            collisionPoints: [{ r: 1.65, h: 0.8 }, { r: 1.65, h: 1.2 }, { r: 0.7, h: 1.325 }],
+            mass: 5.0,
+            accel: 0.02
+        },
+        saw: {
+            name: "Serra",
+            tip: { r: 0.5, h: 0.7 },
+            body: { rTop: 1.2, rBot: 0.6, h: 0.45 },
+            rings: [{ type: 'cylinder', r: 1.65, h: 0.4, segments: 12, y: 1.0 }],
+            top: { rTop: 0.7, rBot: 1.25, h: 0.15 },
+            collisionRadius: 1.65,
+            collisionPoints: [{ r: 1.65, h: 0.8 }, { r: 1.65, h: 1.2 }, { r: 0.7, h: 1.325 }],
+            mass: 5.0,
+            accel: 0.02
+        },
+        titan: {
+            name: "Titã",
+            tip: { r: 0.6, h: 0.8 },
+            body: { rTop: 1.5, rBot: 0.7, h: 0.6 },
+            rings: [
+                { type: 'cylinder', r: 1.9, h: 0.4, segments: 32, y: 1.0 },
+                { type: 'cylinder', r: 1.7, h: 0.4, segments: 32, y: 1.4 }
+            ],
+            top: { rTop: 0.8, rBot: 1.5, h: 0.2 },
+            collisionRadius: 1.9,
+            collisionPoints: [{ r: 1.9, h: 1.0 }, { r: 1.9, h: 1.4 }, { r: 0.8, h: 1.8 }],
+            mass: 7.0,
+            accel: 0.015
+        },
+        vortex: {
+            name: "Vórtice",
+            tip: { r: 0.4, h: 0.9 },
+            body: { rTop: 1.0, rBot: 0.5, h: 0.8 },
+            rings: [
+                { type: 'cylinder', r: 1.5, h: 0.2, segments: 32, y: 0.9 },
+                { type: 'cylinder', r: 1.7, h: 0.2, segments: 32, y: 1.2 },
+                { type: 'cylinder', r: 1.5, h: 0.2, segments: 32, y: 1.5 }
+            ],
+            top: { rTop: 0.3, rBot: 1.0, h: 0.4 },
+            collisionRadius: 1.7,
+            collisionPoints: [{ r: 1.7, h: 1.2 }, { r: 1.5, h: 1.5 }, { r: 0.3, h: 2.1 }],
+            mass: 4.5,
+            accel: 0.025
+        },
+        needle: {
+            name: "Agulha",
+            tip: { r: 0.3, h: 1.2 },
+            body: { rTop: 0.8, rBot: 0.4, h: 0.3 },
+            rings: [{ type: 'cylinder', r: 1.3, h: 0.5, segments: 32, y: 1.35 }],
+            top: { rTop: 0.2, rBot: 0.8, h: 0.6 },
+            collisionRadius: 1.3,
+            collisionPoints: [{ r: 1.3, h: 1.35 }, { r: 0.2, h: 2.1 }],
+            mass: 3.5,
+            accel: 0.03
+        },
+        eclipse: {
+            name: "Eclipse",
+            tip: { r: 0.5, h: 0.7 },
+            body: { rTop: 1.2, rBot: 0.6, h: 0.45 },
+            rings: [
+                { type: 'cylinder', r: 1.8, h: 0.1, segments: 32, y: 1.0 },
+                { type: 'torus', r: 1.4, thickness: 0.3, segments: 32, y: 1.2 }
+            ],
+            top: { rTop: 0.9, rBot: 1.2, h: 0.2 },
+            collisionRadius: 1.8,
+            collisionPoints: [{ r: 1.8, h: 1.0 }, { r: 1.4, h: 1.5 }, { r: 0.9, h: 1.4 }],
+            mass: 5.5,
+            accel: 0.018
+        }
+    };
+    const shapeKeys = Object.keys(BLADE_CONFIGS);
+
     let scene, camera, renderer, player, enemies = [];
+    let previewScene, previewCamera, previewRenderer, previewBlade;
+    let currentShapeIndex = 0;
+
     let currentLevel = 1;
     let keys = {};
     let gameOver = false;
@@ -274,8 +410,6 @@
     const heartGeo = new THREE.ExtrudeGeometry(heartShape, { depth: 0.4, bevelEnabled: true, bevelSegments: 2, steps: 2, bevelSize: 0.1, bevelThickness: 0.1 });
     heartGeo.center();
     const heartMat = new THREE.MeshPhongMaterial({ color: 0xff3333, shininess: 100 });
-    const RING_RADIUS = 1.65;
-    const RING_HEIGHT = 1.0;
 
     // Configurações de física para peões
     let playerConfig = {
@@ -489,6 +623,62 @@
         }
     }
 
+    function initPreview() {
+        const container = document.getElementById('preview-container');
+        previewScene = new THREE.Scene();
+
+        previewCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+        previewCamera.position.set(0, 3, 5.5);
+        previewCamera.lookAt(0, 1, 0);
+
+        previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        previewRenderer.setSize(180, 180);
+        previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(previewRenderer.domElement);
+
+        previewScene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const light = new THREE.DirectionalLight(0xffffff, 1.0);
+        light.position.set(5, 5, 5);
+        previewScene.add(light);
+
+        updatePreview();
+        animatePreview();
+    }
+
+    function updatePreview() {
+        if (previewBlade) previewScene.remove(previewBlade);
+
+        const configKey = shapeKeys[currentShapeIndex];
+        const color = parseInt(document.getElementById('player-color').value.replace('#', '0x'));
+
+        const bObj = createBlade(color, configKey, true);
+        previewBlade = bObj.pivot;
+        // Centralizar visualmente o preview
+        previewBlade.position.y = 0;
+        previewScene.add(previewBlade);
+
+        document.getElementById('shape-name').innerText = BLADE_CONFIGS[configKey].name;
+    }
+
+    function animatePreview() {
+        if (!previewRenderer) return;
+        requestAnimationFrame(animatePreview);
+        if (previewBlade && previewBlade.children[0]) {
+            previewBlade.children[0].rotation.y += 0.02;
+        }
+        previewRenderer.render(previewScene, previewCamera);
+    }
+
+    function changeShape(dir) {
+        currentShapeIndex = (currentShapeIndex + dir + shapeKeys.length) % shapeKeys.length;
+        updatePreview();
+        try { SoundManager.playCollect(); } catch(e){}
+    }
+
+    function updatePreviewColor() {
+        updatePreview();
+    }
+
     function init() {
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
@@ -576,6 +766,7 @@
 
         initJoystick();
         initJumpButton();
+        initPreview();
 
         window.addEventListener('wheel', (e) => {
             cameraZoom += e.deltaY * 0.001;
@@ -639,12 +830,12 @@
         });
     }
 
-    function createBlade(color, shapeType = 'classic', isPlayer = false) {
+    function createBlade(color, configKey = 'classic', isPlayer = false) {
+        const config = BLADE_CONFIGS[configKey] || BLADE_CONFIGS['classic'];
         const pivot = new THREE.Group();
         const spinner = new THREE.Group();
         pivot.add(spinner);
 
-        // Criar UI para o peão (se for inimigo, já que o do player é fixo no HTML por enquanto, ou podemos unificar)
         let ui = null;
         if (!isPlayer) {
             ui = document.createElement('div');
@@ -656,61 +847,52 @@
             document.getElementById('ui').appendChild(ui);
         }
 
-        // Design detalhado e robusto
-        const tipGeo = new THREE.ConeGeometry(0.5, 0.7, 16);
+        const tipGeo = new THREE.ConeGeometry(config.tip.r, config.tip.h, 16);
         const tipMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 1, roughness: 0.2 });
         const tip = new THREE.Mesh(tipGeo, tipMat);
         tip.rotation.x = Math.PI;
-        tip.position.y = 0.35;
+        tip.position.y = config.tip.h / 2;
         tip.castShadow = true;
         tip.receiveShadow = true;
         spinner.add(tip);
 
-        const bodyGeo = new THREE.CylinderGeometry(1.2, 0.6, 0.45, 16);
+        const bodyGeo = new THREE.CylinderGeometry(config.body.rTop, config.body.rBot, config.body.h, 16);
         const bodyMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2, metalness: 0.6 });
         const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.position.y = 0.75;
+        body.position.y = config.tip.h + config.body.h / 2;
         body.castShadow = true;
         body.receiveShadow = true;
         spinner.add(body);
 
-        let ringGeo;
-        if (shapeType === 'bolt') {
-            ringGeo = new THREE.CylinderGeometry(1.65, 1.65, 0.4, 6);
-        } else if (shapeType === 'wave') {
-            ringGeo = new THREE.TorusGeometry(1.45, 0.2, 16, 50);
-        } else if (shapeType === 'saw') {
-            ringGeo = new THREE.CylinderGeometry(1.65, 1.65, 0.4, 12);
-        } else {
-            ringGeo = new THREE.CylinderGeometry(1.65, 1.65, 0.4, 32);
-        }
+        config.rings.forEach(r => {
+            let ringGeo;
+            if (r.type === 'torus') {
+                ringGeo = new THREE.TorusGeometry(r.r, r.thickness, 16, r.segments || 32);
+            } else {
+                ringGeo = new THREE.CylinderGeometry(r.r, r.r, r.h, r.segments || 32);
+            }
+            const ringMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 1, roughness: 0.1 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            if (r.type === 'torus') ring.rotation.x = Math.PI / 2;
+            ring.position.y = r.y;
+            ring.castShadow = true;
+            ring.receiveShadow = true;
+            spinner.add(ring);
+        });
 
-        const ringMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 1, roughness: 0.1 });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-
-        if (shapeType === 'wave') {
-            ring.rotation.x = Math.PI / 2;
-        }
-
-        ring.position.y = 1.0;
-        ring.castShadow = true;
-        ring.receiveShadow = true;
-        spinner.add(ring);
-
-        const topGeo = new THREE.CylinderGeometry(0.7, 1.25, 0.15, 16);
+        const topGeo = new THREE.CylinderGeometry(config.top.rTop, config.top.rBot, config.top.h, 16);
         const top = new THREE.Mesh(topGeo, bodyMat);
-        top.position.y = 1.25;
+        top.position.y = config.tip.h + config.body.h + config.top.h / 2;
         top.castShadow = true;
         top.receiveShadow = true;
         spinner.add(top);
 
-        // Indicador visual de rotação
-        const line = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.04, 0.2), new THREE.MeshBasicMaterial({color: 0xffffff}));
-        line.position.y = 1.15;
+        const line = new THREE.Mesh(new THREE.BoxGeometry(config.collisionRadius * 2, 0.04, 0.2), new THREE.MeshBasicMaterial({color: 0xffffff}));
+        line.position.y = config.tip.h + config.body.h + config.top.h - 0.05;
         line.castShadow = true;
         spinner.add(line);
 
-        return { pivot, ui };
+        return { pivot, ui, config };
     }
 
     function startGame(isNextLevel = false) {
@@ -737,20 +919,24 @@
         lastHeartSpawn = Date.now();
 
         const colorVal = document.getElementById('player-color').value.replace('#', '0x');
-        const shapeVal = document.getElementById('player-shape').value;
+        const shapeKey = shapeKeys[currentShapeIndex];
 
         playerConfig.color = parseInt(colorVal);
-        const pObj = createBlade(playerConfig.color, shapeVal, true);
+        const pObj = createBlade(playerConfig.color, shapeKey, true);
         player = pObj.pivot;
         scene.add(player);
 
+        playerConfig.collisionRadius = pObj.config.collisionRadius;
+        playerConfig.collisionPoints = pObj.config.collisionPoints;
+        playerConfig.mass = pObj.config.mass;
+        playerConfig.accel = pObj.config.accel;
+
         const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60, 0xe67e22, 0x16a085, 0x2980b9];
-        const enemyShapes = ['classic', 'bolt', 'wave', 'saw'];
 
         for(let i=0; i<currentLevel; i++) {
             const eColor = enemyColors[i % enemyColors.length];
-            const eShape = enemyShapes[Math.floor(Math.random() * enemyShapes.length)];
-            const eBladeObj = createBlade(eColor, eShape, false);
+            const eShapeKey = shapeKeys[Math.floor(Math.random() * shapeKeys.length)];
+            const eBladeObj = createBlade(eColor, eShapeKey, false);
             scene.add(eBladeObj.pivot);
 
             enemies.push({
@@ -765,8 +951,10 @@
                 wobble: 0,
                 hitWobble: 0,
                 isFallen: false,
-                accel: 0.012 + Math.random() * 0.008,
-                mass: 5.0,
+                accel: (eBladeObj.config.accel * 0.7) + Math.random() * (eBladeObj.config.accel * 0.4),
+                mass: eBladeObj.config.mass,
+                collisionRadius: eBladeObj.config.collisionRadius,
+                collisionPoints: eBladeObj.config.collisionPoints,
                 color: eColor,
                 perceivedHearts: new Map()
             });
@@ -868,7 +1056,8 @@
             hearts.forEach(h => {
                 if (h.active) {
                     const d = b.mesh.position.distanceTo(h.mesh.position);
-                    if (d < 3.5) {
+                    const pickupRadius = (b.cfg.collisionRadius || 1.65) + 1.8;
+                    if (d < pickupRadius) {
                         h.collect();
                         b.cfg.stamina = Math.min(100, b.cfg.stamina + 10);
                         SoundManager.playCollect();
@@ -885,7 +1074,8 @@
                 if (b1.cfg.isFallen || b2.cfg.isFallen) continue;
 
                 const dist = b1.mesh.position.distanceTo(b2.mesh.position);
-                if (dist < 3.2) {
+                const combinedRadius = (b1.cfg.collisionRadius || 1.65) + (b2.cfg.collisionRadius || 1.65);
+                if (dist < combinedRadius) {
                     const forceDir = new THREE.Vector3().subVectors(b1.mesh.position, b2.mesh.position).normalize();
                     const relVel = new THREE.Vector3().subVectors(b1.cfg.vel, b2.cfg.vel).length();
                     const pushFactor = 0.05 + (relVel * 0.3);
@@ -1037,11 +1227,11 @@
             const sinTheta = Math.sqrt(1 - upY * upY);
             const cosTheta = upY;
 
-            // Pontos críticos: bordas do anel e o topo do peão
-            const collisionPoints = [
-                { r: 1.65, h: 0.8 },   // Base do anel
-                { r: 1.65, h: 1.2 },   // Topo do anel
-                { r: 0.7,  h: 1.325 }  // Ponta superior
+            // Pontos críticos do modelo
+            const collisionPoints = c.collisionPoints || [
+                { r: 1.65, h: 0.8 },
+                { r: 1.65, h: 1.2 },
+                { r: 0.7,  h: 1.325 }
             ];
 
             const dist = new THREE.Vector2(obj.position.x, obj.position.z).length();
