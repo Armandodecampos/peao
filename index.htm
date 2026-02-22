@@ -96,6 +96,7 @@
             overflow-y: auto;
             padding: 0 20px;
             box-sizing: border-box;
+            touch-action: pan-y;
         }
 
         /* Custom scrollbar */
@@ -412,6 +413,35 @@
             transform: scale(1.1);
         }
 
+        .camera-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 50px;
+            height: 50px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 200;
+            pointer-events: auto;
+            color: white;
+            font-size: 1.5rem;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            transition: all 0.3s;
+        }
+        .camera-btn:hover {
+            background: rgba(255,255,255,0.2);
+            transform: scale(1.05);
+        }
+        .camera-btn:active {
+            transform: scale(0.95);
+        }
+
         .footer-controls {
             flex-shrink: 0;
             width: 100%;
@@ -431,7 +461,10 @@
             border: 1px solid var(--glass-border);
             position: relative;
             overflow: hidden;
-            pointer-events: auto;
+            pointer-events: none;
+        }
+        #preview-container canvas {
+            pointer-events: none;
         }
         .skill-btn {
             width: 32px;
@@ -514,6 +547,10 @@
 </div>
 
 <div id="countdown-overlay"></div>
+
+<div id="camera-toggle" class="camera-btn" onclick="toggleCamera()" title="Alternar Câmera">
+    🎥
+</div>
 
 <div id="start-screen" class="overlay" style="display: none;">
     <div class="header-section">
@@ -715,6 +752,8 @@
     let currentLevel = 1;
     let camAngleH = 0;
     let camAngleV = 0.4;
+    let camDistPresets = [12, 25, 45];
+    let camDistIndex = 1;
     let isDraggingCamera = false;
     let previousMouseX = 0;
     let previousMouseY = 0;
@@ -964,6 +1003,11 @@
         }
     }
 
+    function toggleCamera() {
+        camDistIndex = (camDistIndex + 1) % camDistPresets.length;
+        try { SoundManager.playCollect(); } catch(e){}
+    }
+
     function initPreview() {
         const container = document.getElementById('preview-container');
         previewScene = new THREE.Scene();
@@ -1104,28 +1148,22 @@
                 document.getElementById('start-screen').style.display = 'flex';
             }, 500);
         };
-
-        const loader = new THREE.TextureLoader(loadingManager);
+        // Forçar disparo do onLoad pois não há mais texturas externas
+        setTimeout(() => {
+            if (loadingManager.onLoad) loadingManager.onLoad();
+        }, 100);
 
         // Chão amplo (Terra)
-        const dirtTex = loader.load("https://dl.dropbox.com/scl/fi/gdiu7zb9234a8jm68z7f3/textura-de-terra3.png?rlkey=li8ncb3e8px530q9kjuu6t7e2&st=jeg9nzvl&dl=1");
-        dirtTex.wrapS = dirtTex.wrapT = THREE.RepeatWrapping;
-        dirtTex.repeat.set(150, 150);
-
         const floorGeo = new THREE.PlaneGeometry(2000, 2000);
-        const floorMat = new THREE.MeshPhongMaterial({ map: dirtTex, shininess: 5 });
+        const floorMat = new THREE.MeshPhongMaterial({ color: 0x3d2817, shininess: 5 }); // Marrom terra
         const floor = new THREE.Mesh(floorGeo, floorMat);
         floor.rotation.x = -Math.PI/2;
         floor.receiveShadow = true;
         scene.add(floor);
 
         // Arena de Batalha (Cimento Queimado)
-        const cementTex = loader.load("https://dl.dropbox.com/scl/fi/gh66sugd65o7bppoza6iq/textura-de-cimento-queimado.png?rlkey=mgc0pcnhhd8mjbidp6xfbhood&st=vy13hxmc&dl=1");
-        cementTex.wrapS = cementTex.wrapT = THREE.RepeatWrapping;
-        cementTex.repeat.set(10, 10);
-
         const arenaFloorGeo = new THREE.CircleGeometry(ARENA_RADIUS, 128);
-        const arenaFloorMat = new THREE.MeshPhongMaterial({ map: cementTex, shininess: 10 });
+        const arenaFloorMat = new THREE.MeshPhongMaterial({ color: 0x444444, shininess: 10 }); // Cinza cimento
         const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
         arenaFloor.rotation.x = -Math.PI/2;
         arenaFloor.position.y = 0.5;
@@ -1177,7 +1215,7 @@
 
         const onTouchStart = (e) => {
             const touch = e.touches[0];
-            if (e.target.closest('#joystick-container') || e.target.closest('#jump-button') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker')) return;
+            if (e.target.closest('#joystick-container') || e.target.closest('#jump-button') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container')) return;
             if (e.cancelable) e.preventDefault();
             isDraggingCamera = true;
             previousMouseX = touch.clientX;
@@ -1185,6 +1223,7 @@
         };
         const onTouchMove = (e) => {
             if (!isDraggingCamera) return;
+            if (e.target.closest('.start-container')) return;
             if (e.cancelable) e.preventDefault();
             const touch = e.touches[0];
             const dx = touch.clientX - previousMouseX;
@@ -1818,7 +1857,8 @@
 
         // Update Camera to follow player
         if (player) {
-            const camDist = 18 * cameraZoom;
+            const baseDist = camDistPresets[camDistIndex];
+            const camDist = baseDist * cameraZoom;
 
             const targetPos = new THREE.Vector3(
                 player.position.x + camDist * Math.sin(camAngleH) * Math.cos(camAngleV),
