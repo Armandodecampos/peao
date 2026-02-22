@@ -620,15 +620,6 @@
     <div id="level-ui" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: #f1c40f; font-weight: 900; font-size: 1.5rem; text-shadow: 0 0 10px rgba(0,0,0,0.8); display: none; z-index: 10; letter-spacing: 2px;">
         NÍVEL 1
     </div>
-    <div id="terras-ui" style="position: absolute; top: 60px; left: 50%; transform: translateX(-50%); color: #fff; font-weight: bold; font-size: 1.2rem; text-shadow: 0 0 10px rgba(0,0,0,0.8); display: none; z-index: 10;">
-        TERRAS: 0
-    </div>
-    <div id="dig-ui" style="position: absolute; bottom: 200px; left: 50%; transform: translateX(-50%); display: none; text-align: center; width: 200px; z-index: 100; pointer-events: none;">
-        <div style="color: white; margin-bottom: 5px; font-weight: bold; text-shadow: 0 0 5px black;">CAVANDO...</div>
-        <div class="progress-container" style="width: 100%; margin-top: 0; background: rgba(255,255,255,0.1); border-radius: 10px; height: 10px; overflow: hidden;">
-            <div id="dig-progress-bar" style="width: 0%; height: 100%; background: #8b4513; transition: none;"></div>
-        </div>
-    </div>
 </div>
 
 <div id="msg" class="overlay">
@@ -637,7 +628,6 @@
 
 <div id="mobile-controls" class="mobile-controls-container">
     <div class="control-group">
-        <div id="ctrl-dig" class="ctrl-btn" style="background: rgba(139, 69, 19, 0.4);">⛏️</div>
         <div id="ctrl-jump" class="ctrl-btn">⏫</div>
         <div class="control-row">
             <div id="ctrl-left" class="ctrl-btn">◀️</div>
@@ -775,10 +765,6 @@
     let lastHeartSpawn = 0;
     let cameraShake = 0;
     let cameraZoom = 1.0;
-    let totalTerras = 0;
-    let isDigging = false;
-    let digProgress = 0;
-    const DIG_TIME = 2000;
     const CAMERA_OFFSET = new THREE.Vector3(0, 40, 35);
 
     const ARENA_RADIUS = 100;
@@ -1022,8 +1008,7 @@
             'ctrl-forward': 'forward',
             'ctrl-left': 'left',
             'ctrl-right': 'right',
-            'ctrl-jump': 'jump',
-            'ctrl-dig': 'dig'
+            'ctrl-jump': 'jump'
         };
 
         Object.keys(btns).forEach(id => {
@@ -1034,8 +1019,6 @@
                 e.preventDefault();
                 if (action === 'jump') {
                     requestJump();
-                } else if (action === 'dig') {
-                    startDigging();
                 } else {
                     mobileControls[action] = true;
                 }
@@ -1192,31 +1175,6 @@
         };
 
         loadingManager.onLoad = () => {
-            // Chão amplo (Terra)
-            const floorGeo = new THREE.PlaneGeometry(2000, 2000);
-            const floorMat = new THREE.MeshPhongMaterial({ color: 0x3d2817, shininess: 5 }); // Marrom terra
-            const floor = new THREE.Mesh(floorGeo, floorMat);
-            floor.rotation.x = -Math.PI/2;
-            floor.receiveShadow = true;
-            scene.add(floor);
-
-            // Arena de Batalha (Cimento Queimado)
-            const arenaFloorGeo = new THREE.CircleGeometry(ARENA_RADIUS, 128);
-            const arenaFloorMat = new THREE.MeshPhongMaterial({ color: 0x444444, shininess: 10 }); // Cinza cimento
-            const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
-            arenaFloor.rotation.x = -Math.PI/2;
-            arenaFloor.position.y = 0.5;
-            arenaFloor.receiveShadow = true;
-            scene.add(arenaFloor);
-
-            // Paredes da Arena
-            const wallMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide });
-
-            const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS, 5, 128, 1, true);
-            const outerWall = new THREE.Mesh(outerWallGeo, wallMat);
-            outerWall.position.y = 3.0;
-            scene.add(outerWall);
-
             setTimeout(() => {
                 document.getElementById('loading-screen').style.display = 'none';
                 document.getElementById('start-screen').style.display = 'flex';
@@ -1227,10 +1185,32 @@
             if (loadingManager.onLoad) loadingManager.onLoad();
         }, 100);
 
-        window.addEventListener('keydown', e => {
-            keys[e.key] = true;
-            if (e.key === 'e' || e.key === 'E') startDigging();
-        });
+        // Chão amplo (Terra)
+        const floorGeo = new THREE.PlaneGeometry(2000, 2000);
+        const floorMat = new THREE.MeshPhongMaterial({ color: 0x3d2817, shininess: 5 }); // Marrom terra
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI/2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Arena de Batalha (Cimento Queimado)
+        const arenaFloorGeo = new THREE.CircleGeometry(ARENA_RADIUS, 128);
+        const arenaFloorMat = new THREE.MeshPhongMaterial({ color: 0x444444, shininess: 10 }); // Cinza cimento
+        const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
+        arenaFloor.rotation.x = -Math.PI/2;
+        arenaFloor.position.y = 0.5;
+        arenaFloor.receiveShadow = true;
+        scene.add(arenaFloor);
+
+        // Paredes da Arena
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide });
+
+        const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS, 5, 128, 1, true);
+        const outerWall = new THREE.Mesh(outerWallGeo, wallMat);
+        outerWall.position.y = 3.0;
+        scene.add(outerWall);
+
+        window.addEventListener('keydown', e => keys[e.key] = true);
         window.addEventListener('keyup', e => keys[e.key] = false);
 
         initMobileControls();
@@ -1364,7 +1344,6 @@
         // O reset para nível 1 acontece apenas em resetGame().
         document.getElementById('level-ui').innerText = `NÍVEL ${currentLevel}`;
         document.getElementById('level-ui').style.display = 'block';
-        document.getElementById('terras-ui').style.display = 'block';
 
         try {
             SoundManager.init();
@@ -1460,30 +1439,6 @@
         }, 1000);
     }
 
-    function startDigging() {
-        if (!gameStarted || !raceActive || playerConfig.isFallen || isDigging) return;
-        isDigging = true;
-        digProgress = 0;
-        document.getElementById('dig-ui').style.display = 'block';
-        document.getElementById('dig-progress-bar').style.width = '0%';
-    }
-
-    function completeDigging() {
-        if (!isDigging) return;
-        isDigging = false;
-        totalTerras += 20;
-        document.getElementById('terras-ui').innerText = `TERRAS: ${totalTerras}`;
-        document.getElementById('dig-ui').style.display = 'none';
-        try { SoundManager.playCollect(); } catch(e){}
-    }
-
-    function cancelDigging() {
-        if (!isDigging) return;
-        isDigging = false;
-        digProgress = 0;
-        document.getElementById('dig-ui').style.display = 'none';
-    }
-
     function resetPositions() {
         const spawnDist = 15; // Aproximar para combate imediato
 
@@ -1529,15 +1484,11 @@
         document.getElementById('msg').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
-        document.getElementById('terras-ui').style.display = 'none';
         document.getElementById('mobile-controls').style.display = 'none';
         gameStarted = false;
         currentLevel = 1;
         playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
         availablePoints = 3;
-        totalTerras = 0;
-        document.getElementById('terras-ui').innerText = 'TERRAS: 0';
-        cancelDigging();
         updateSkillsUI();
     }
 
@@ -1595,10 +1546,7 @@
 
                     b1.cfg.vel.y += 0.06;
                     b2.cfg.vel.y += 0.06;
-                    if (b1.mesh === player || b2.mesh === player) {
-                        cameraShake = 0.4;
-                        if (isDigging) cancelDigging();
-                    }
+                    if (b1.mesh === player || b2.mesh === player) cameraShake = 0.4;
 
                     const baseDamage = 1 + (relVel * 4);
 
@@ -1626,23 +1574,6 @@
     function animate() {
         requestAnimationFrame(animate);
         sparks = sparks.filter(s => s.update());
-
-        if (isDigging) {
-            digProgress += 16.67;
-            const percent = Math.min(100, (digProgress / DIG_TIME) * 100);
-            const progressBar = document.getElementById('dig-progress-bar');
-            if (progressBar) progressBar.style.width = percent + '%';
-
-            if (digProgress >= DIG_TIME) {
-                completeDigging();
-            }
-
-            const isMoving = keys['ArrowUp'] || keys['w'] || mobileControls.forward ||
-                             keys['ArrowDown'] || keys['s'] ||
-                             keys['ArrowLeft'] || keys['a'] || mobileControls.left ||
-                             keys['ArrowRight'] || keys['d'] || mobileControls.right;
-            if (isMoving || playerConfig.isFallen) cancelDigging();
-        }
         hearts = hearts.filter(h => {
             const active = h.update();
             if (!active) {
@@ -1675,15 +1606,8 @@
 
                 if (keys['ArrowUp'] || keys['w'] || mobileControls.forward) playerConfig.vel.addScaledVector(forward, a);
                 if (keys['ArrowDown'] || keys['s']) playerConfig.vel.addScaledVector(forward, -a);
-
-                if (keys['ArrowLeft'] || keys['a'] || mobileControls.left) {
-                    playerConfig.vel.addScaledVector(right, -a);
-                    camAngleH += 0.03; // Gira a câmera automaticamente para a esquerda
-                }
-                if (keys['ArrowRight'] || keys['d'] || mobileControls.right) {
-                    playerConfig.vel.addScaledVector(right, a);
-                    camAngleH -= 0.03; // Gira a câmera automaticamente para a direita
-                }
+                if (keys['ArrowLeft'] || keys['a'] || mobileControls.left) playerConfig.vel.addScaledVector(right, -a);
+                if (keys['ArrowRight'] || keys['d'] || mobileControls.right) playerConfig.vel.addScaledVector(right, a);
 
                 if (keys[' ']) {
                     requestJump();
@@ -1809,10 +1733,7 @@
                 obj.position.addScaledVector(radialDir, -pushIn - 0.5);
                 c.vel.addScaledVector(radialDir, -0.2);
                 c.stamina -= 5;
-                if (obj === player) {
-                    cameraShake = 0.3;
-                    if (isDigging) cancelDigging();
-                }
+                if (obj === player) cameraShake = 0.3;
                 SoundManager.playHit();
             }
 
