@@ -368,6 +368,30 @@
             transform: scale(0.9);
         }
 
+        .joystick-container {
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            position: relative;
+            pointer-events: auto;
+            touch-action: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .joystick-handle {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
         #msg { display: none; text-align: center; }
         #status-text { width: 100%; }
 
@@ -620,6 +644,9 @@
     <div id="level-ui" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: #f1c40f; font-weight: 900; font-size: 1.5rem; text-shadow: 0 0 10px rgba(0,0,0,0.8); display: none; z-index: 10; letter-spacing: 2px;">
         NÍVEL 1
     </div>
+    <div id="bomb-ui" style="position: absolute; top: 20px; right: 20px; color: #f1c40f; font-weight: 900; font-size: 2rem; display: none; z-index: 10; text-shadow: 0 0 10px rgba(0,0,0,0.8);">
+        💣
+    </div>
 </div>
 
 <div id="msg" class="overlay">
@@ -635,6 +662,9 @@
         </div>
     </div>
     <div class="control-group" style="justify-content: flex-end;">
+        <div id="joystick-container" class="joystick-container">
+            <div id="joystick-handle" class="joystick-handle"></div>
+        </div>
         <div id="ctrl-forward" class="ctrl-btn" style="width: 90px; height: 90px; font-size: 2.5rem; margin-bottom: 10px;">🔼</div>
     </div>
 </div>
@@ -756,6 +786,9 @@
     let previousMouseY = 0;
     let keys = {};
     let mobileControls = { forward: false, left: false, right: false, jump: false };
+    let cameraJoystickInput = { x: 0, y: 0 };
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
     let gameOver = false;
     let gameStarted = false;
     let raceActive = false;
@@ -763,6 +796,9 @@
     let sparks = [];
     let hearts = [];
     let lastHeartSpawn = 0;
+    let bombs = [];
+    let lastBombSpawn = 0;
+    let launchedBombs = [];
     let cameraShake = 0;
     let cameraZoom = 1.0;
     const CAMERA_OFFSET = new THREE.Vector3(0, 40, 35);
@@ -779,6 +815,11 @@
     heartGeo.center();
     const heartMat = new THREE.MeshPhongMaterial({ color: 0xff3333, shininess: 100 });
 
+    const bombGeo = new THREE.SphereGeometry(0.8, 16, 16);
+    const bombMat = new THREE.MeshPhongMaterial({ color: 0x222222, shininess: 100 });
+    const fuseGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 8);
+    const fuseMat = new THREE.MeshPhongMaterial({ color: 0xaa5500 });
+
     // Configurações de física para peões
     let playerConfig = {
         vel: new THREE.Vector3(0, 0, 0),
@@ -787,6 +828,7 @@
         wobble: 0,
         hitWobble: 0,
         isFallen: false,
+        hasBomb: false,
         accel: 0.02,
         mass: 5.0,
         color: 0x2980b9
@@ -998,6 +1040,105 @@
         }
     }
 
+    class LaunchedBomb {
+        constructor(start, end) {
+            this.mesh = new THREE.Group();
+            const body = new THREE.Mesh(bombGeo, bombMat);
+            body.castShadow = true;
+            this.mesh.add(body);
+            const fuse = new THREE.Mesh(fuseGeo, fuseMat);
+            fuse.position.y = 0.8;
+            fuse.castShadow = true;
+            this.mesh.add(fuse);
+
+            this.start = start.clone();
+            this.end = end.clone();
+            this.mesh.position.copy(this.start);
+            scene.add(this.mesh);
+
+            this.progress = 0;
+            this.speed = 0.03;
+            this.height = 8;
+        }
+        update() {
+            this.progress += this.speed;
+            if (this.progress >= 1) {
+                this.explode();
+                return false;
+            }
+
+            this.mesh.position.lerpVectors(this.start, this.end, this.progress);
+            this.mesh.position.y = this.start.y + Math.sin(this.progress * Math.PI) * this.height;
+
+            this.mesh.rotation.x += 0.2;
+            this.mesh.rotation.z += 0.2;
+
+            return true;
+        }
+        explode() {
+            explodeBomb(this.end);
+            scene.remove(this.mesh);
+        }
+    }
+
+    function explodeBomb(pos) {
+        for(let i=0; i<40; i++) {
+            const s = new Spark(pos);
+            s.velocity.multiplyScalar(2.5);
+            sparks.push(s);
+        }
+
+        const explosionRadius = 25;
+        const explosionForce = 1.8;
+
+        const allBlades = [{cfg: playerConfig, mesh: player}, ...enemies.map((e, i) => ({cfg: enemyConfigs[i], mesh: e.pivot}))];
+
+        allBlades.forEach(b => {
+            if (!b.mesh) return;
+            const d = b.mesh.position.distanceTo(pos);
+            if (d < explosionRadius) {
+                const dir = new THREE.Vector3().subVectors(b.mesh.position, pos).normalize();
+                const power = (1 - d/explosionRadius) * explosionForce;
+                b.cfg.vel.addScaledVector(dir, power / (b.cfg.mass || 5));
+                b.cfg.vel.y += power * 0.4;
+                b.cfg.stamina -= 25 * (1 - d/explosionRadius);
+                b.cfg.hitWobble += 0.6;
+            }
+        });
+
+        cameraShake = 0.7;
+        try { SoundManager.playHit(); } catch(e){}
+    }
+
+    class Bomb {
+        constructor() {
+            this.mesh = new THREE.Group();
+            const body = new THREE.Mesh(bombGeo, bombMat);
+            body.castShadow = true;
+            this.mesh.add(body);
+
+            const fuse = new THREE.Mesh(fuseGeo, fuseMat);
+            fuse.position.y = 0.8;
+            fuse.castShadow = true;
+            this.mesh.add(fuse);
+
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * (ARENA_RADIUS * 0.8);
+            this.mesh.position.set(Math.cos(angle) * dist, 1.2, Math.sin(angle) * dist);
+            scene.add(this.mesh);
+            this.active = true;
+        }
+        update() {
+            this.mesh.rotation.y += 0.05;
+            this.mesh.position.y = 1.2 + Math.sin(Date.now() * 0.005) * 0.15;
+            return this.active;
+        }
+        collect() {
+            scene.remove(this.mesh);
+            this.active = false;
+        }
+    }
+
     function toggleCamera() {
         camDistIndex = (camDistIndex + 1) % camDistPresets.length;
         try { SoundManager.playCollect(); } catch(e){}
@@ -1038,6 +1179,59 @@
             el.addEventListener('mouseup', endAction);
             el.addEventListener('mouseleave', endAction);
         });
+
+        initJoystick();
+    }
+
+    function initJoystick() {
+        const container = document.getElementById('joystick-container');
+        const handle = document.getElementById('joystick-handle');
+        let active = false;
+        let rect = null;
+
+        const handleStart = (e) => {
+            if (e.cancelable) e.preventDefault();
+            active = true;
+            rect = container.getBoundingClientRect();
+            update(e);
+        };
+        const handleMove = (e) => {
+            if (!active) return;
+            update(e);
+        };
+        const handleEnd = () => {
+            active = false;
+            cameraJoystickInput.x = 0;
+            cameraJoystickInput.y = 0;
+            handle.style.transform = `translate(0, 0)`;
+        };
+
+        const update = (e) => {
+            const touch = (e.touches && e.touches.length > 0) ? e.touches[0] : e;
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            let dx = touch.clientX - centerX;
+            let dy = touch.clientY - centerY;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const maxDist = rect.width / 2;
+
+            if (dist > maxDist) {
+                dx *= maxDist / dist;
+                dy *= maxDist / dist;
+            }
+
+            cameraJoystickInput.x = dx / maxDist;
+            cameraJoystickInput.y = dy / maxDist;
+            handle.style.transform = `translate(${dx}px, ${dy}px)`;
+        };
+
+        container.addEventListener('touchstart', handleStart, { passive: false });
+        window.addEventListener('touchmove', handleMove, { passive: false });
+        window.addEventListener('touchend', handleEnd);
+
+        container.addEventListener('mousedown', handleStart);
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleEnd);
     }
 
     function initPreview() {
@@ -1270,7 +1464,45 @@
         window.addEventListener('touchmove', onTouchMove, { passive: false });
         window.addEventListener('touchend', onTouchEnd);
 
+        window.addEventListener('mousedown', (e) => {
+            if (playerConfig.hasBomb && gameStarted && raceActive) {
+                if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('#joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker')) return;
+                launchBombAtMouse(e.clientX, e.clientY);
+            }
+        });
+
+        window.addEventListener('touchstart', (e) => {
+             if (playerConfig.hasBomb && gameStarted && raceActive) {
+                const touch = e.touches[0];
+                if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('#joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container')) return;
+                launchBombAtMouse(touch.clientX, touch.clientY);
+             }
+        }, { passive: false });
+
         animate();
+    }
+
+    function launchBombAtMouse(x, y) {
+        mouse.x = (x / window.innerWidth) * 2 - 1;
+        mouse.y = -(y / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(scene.children);
+
+        let targetPos = null;
+        for (let i = 0; i < intersects.length; i++) {
+            if (intersects[i].object.geometry.type === 'CircleGeometry' || intersects[i].object.geometry.type === 'PlaneGeometry') {
+                targetPos = intersects[i].point;
+                break;
+            }
+        }
+
+        if (targetPos) {
+            playerConfig.hasBomb = false;
+            document.getElementById('bomb-ui').style.display = 'none';
+            launchedBombs.push(new LaunchedBomb(player.position, targetPos));
+            try { SoundManager.playJump(); } catch(e){} // Som de lançamento
+        }
     }
 
 
@@ -1362,6 +1594,11 @@
         hearts.forEach(h => scene.remove(h.mesh));
         hearts = [];
         lastHeartSpawn = Date.now();
+        bombs.forEach(b => scene.remove(b.mesh));
+        bombs = [];
+        lastBombSpawn = Date.now();
+        launchedBombs.forEach(lb => scene.remove(lb.mesh));
+        launchedBombs = [];
 
         const colorVal = document.getElementById('player-color').value.replace('#', '0x');
         const shapeKey = shapeKeys[currentShapeIndex];
@@ -1448,6 +1685,8 @@
         playerConfig.vel.set(0,0,0);
         playerConfig.stamina = 100;
         playerConfig.isFallen = false;
+        playerConfig.hasBomb = false;
+        document.getElementById('bomb-ui').style.display = 'none';
         playerConfig.wobble = 0;
         playerConfig.hitWobble = 0;
 
@@ -1469,6 +1708,10 @@
         document.getElementById('msg').style.display = 'none';
         sparks.forEach(s => scene.remove(s.mesh));
         sparks = [];
+        bombs.forEach(b => scene.remove(b.mesh));
+        bombs = [];
+        launchedBombs.forEach(lb => scene.remove(lb.mesh));
+        launchedBombs = [];
     }
 
     function requestJump() {
@@ -1504,6 +1747,22 @@
 
     function checkCollision() {
         const allBlades = [{mesh: player, cfg: playerConfig}, ...enemies.map((e, i) => ({mesh: e.pivot, cfg: enemyConfigs[i]}))];
+
+        // Colisões com Bombas
+        if (!playerConfig.isFallen && !playerConfig.hasBomb) {
+            bombs.forEach(b => {
+                if (b.active) {
+                    const d = player.position.distanceTo(b.mesh.position);
+                    const pickupRadius = (playerConfig.collisionRadius || 1.65) + 1.2;
+                    if (d < pickupRadius) {
+                        b.collect();
+                        playerConfig.hasBomb = true;
+                        document.getElementById('bomb-ui').style.display = 'block';
+                        SoundManager.playCollect();
+                    }
+                }
+            });
+        }
 
         // Colisões com Corações
         allBlades.forEach(b => {
@@ -1573,6 +1832,12 @@
 
     function animate() {
         requestAnimationFrame(animate);
+
+        if (cameraJoystickInput.x !== 0 || cameraJoystickInput.y !== 0) {
+            camAngleH -= cameraJoystickInput.x * 0.05;
+            camAngleV = THREE.MathUtils.clamp(camAngleV + cameraJoystickInput.y * 0.05, 0.1, Math.PI / 2.1);
+        }
+
         sparks = sparks.filter(s => s.update());
         hearts = hearts.filter(h => {
             const active = h.update();
@@ -1582,9 +1847,17 @@
             return active;
         });
 
+        bombs = bombs.filter(b => b.update());
+        launchedBombs = launchedBombs.filter(lb => lb.update());
+
         if (raceActive && Date.now() - lastHeartSpawn > 10000 && hearts.length < 3) {
             hearts.push(new Heart());
             lastHeartSpawn = Date.now();
+        }
+
+        if (raceActive && Date.now() - lastBombSpawn > 15000 && bombs.length < 2) {
+            bombs.push(new Bomb());
+            lastBombSpawn = Date.now();
         }
 
         if (!gameStarted || (gameOver && !resultPending)) {
