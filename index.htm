@@ -368,6 +368,14 @@
             transform: scale(0.9);
         }
 
+        #ctrl-jump {
+            width: 100px;
+            height: 60px;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            font-weight: 900;
+        }
+
         .joystick-container {
             width: 120px;
             height: 120px;
@@ -655,17 +663,15 @@
 
 <div id="mobile-controls" class="mobile-controls-container">
     <div class="control-group">
-        <div id="ctrl-jump" class="ctrl-btn">⏫</div>
-        <div class="control-row">
-            <div id="ctrl-left" class="ctrl-btn">◀️</div>
-            <div id="ctrl-right" class="ctrl-btn">▶️</div>
+        <div id="move-joystick-container" class="joystick-container">
+            <div id="move-joystick-handle" class="joystick-handle"></div>
         </div>
+        <div id="ctrl-jump" class="ctrl-btn">PULO</div>
     </div>
     <div class="control-group" style="justify-content: flex-end;">
         <div id="joystick-container" class="joystick-container">
             <div id="joystick-handle" class="joystick-handle"></div>
         </div>
-        <div id="ctrl-forward" class="ctrl-btn" style="width: 90px; height: 90px; font-size: 2.5rem; margin-bottom: 10px;">🔼</div>
     </div>
 </div>
 
@@ -785,7 +791,8 @@
     let previousMouseX = 0;
     let previousMouseY = 0;
     let keys = {};
-    let mobileControls = { forward: false, left: false, right: false, jump: false };
+    let mobileControls = { jump: false };
+    let moveJoystickInput = { x: 0, y: 0 };
     let cameraJoystickInput = { x: 0, y: 0 };
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
@@ -1145,69 +1152,88 @@
     }
 
     function initMobileControls() {
-        const btns = {
-            'ctrl-forward': 'forward',
-            'ctrl-left': 'left',
-            'ctrl-right': 'right',
-            'ctrl-jump': 'jump'
+        const jumpBtn = document.getElementById('ctrl-jump');
+
+        const jumpStart = (e) => {
+            e.preventDefault();
+            requestJump();
         };
 
-        Object.keys(btns).forEach(id => {
-            const el = document.getElementById(id);
-            const action = btns[id];
+        jumpBtn.addEventListener('touchstart', jumpStart, { passive: false });
+        jumpBtn.addEventListener('mousedown', jumpStart);
 
-            const startAction = (e) => {
-                e.preventDefault();
-                if (action === 'jump') {
-                    requestJump();
-                } else {
-                    mobileControls[action] = true;
-                }
-            };
-
-            const endAction = (e) => {
-                e.preventDefault();
-                mobileControls[action] = false;
-            };
-
-            el.addEventListener('touchstart', startAction, { passive: false });
-            el.addEventListener('touchend', endAction, { passive: false });
-            el.addEventListener('touchcancel', endAction, { passive: false });
-
-            // Support for mouse testing
-            el.addEventListener('mousedown', startAction);
-            el.addEventListener('mouseup', endAction);
-            el.addEventListener('mouseleave', endAction);
-        });
-
-        initJoystick();
+        initJoystick('joystick-container', 'joystick-handle', cameraJoystickInput);
+        initJoystick('move-joystick-container', 'move-joystick-handle', moveJoystickInput);
     }
 
-    function initJoystick() {
-        const container = document.getElementById('joystick-container');
-        const handle = document.getElementById('joystick-handle');
+    function initJoystick(containerId, handleId, inputObj) {
+        const container = document.getElementById(containerId);
+        const handle = document.getElementById(handleId);
         let active = false;
         let rect = null;
+        let touchId = null;
 
         const handleStart = (e) => {
+            if (active) return;
             if (e.cancelable) e.preventDefault();
-            active = true;
-            rect = container.getBoundingClientRect();
-            update(e);
+
+            if (e.touches) {
+                const touch = e.changedTouches[0];
+                touchId = touch.identifier;
+                active = true;
+                rect = container.getBoundingClientRect();
+                update(touch);
+            } else {
+                active = true;
+                rect = container.getBoundingClientRect();
+                update(e);
+            }
         };
+
         const handleMove = (e) => {
             if (!active) return;
-            update(e);
+            if (e.touches) {
+                for (let i = 0; i < e.touches.length; i++) {
+                    if (e.touches[i].identifier === touchId) {
+                        update(e.touches[i]);
+                        break;
+                    }
+                }
+            } else {
+                update(e);
+            }
         };
-        const handleEnd = () => {
+
+        const handleEnd = (e) => {
+            if (!active) return;
+            if (e.touches) {
+                let match = false;
+                for (let i = 0; i < e.touches.length; i++) {
+                    if (e.touches[i].identifier === touchId) {
+                        match = true;
+                        break;
+                    }
+                }
+                if (match) return; // Still touching with this ID? No, touchend usually means it's gone from touches.
+                // Wait, in touchend, the touch is in changedTouches, not in touches.
+                let changedMatch = false;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === touchId) {
+                        changedMatch = true;
+                        break;
+                    }
+                }
+                if (!changedMatch) return;
+            }
+
             active = false;
-            cameraJoystickInput.x = 0;
-            cameraJoystickInput.y = 0;
+            touchId = null;
+            inputObj.x = 0;
+            inputObj.y = 0;
             handle.style.transform = `translate(0, 0)`;
         };
 
-        const update = (e) => {
-            const touch = (e.touches && e.touches.length > 0) ? e.touches[0] : e;
+        const update = (touch) => {
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
             let dx = touch.clientX - centerX;
@@ -1220,14 +1246,15 @@
                 dy *= maxDist / dist;
             }
 
-            cameraJoystickInput.x = dx / maxDist;
-            cameraJoystickInput.y = dy / maxDist;
+            inputObj.x = dx / maxDist;
+            inputObj.y = dy / maxDist;
             handle.style.transform = `translate(${dx}px, ${dy}px)`;
         };
 
         container.addEventListener('touchstart', handleStart, { passive: false });
         window.addEventListener('touchmove', handleMove, { passive: false });
         window.addEventListener('touchend', handleEnd);
+        window.addEventListener('touchcancel', handleEnd);
 
         container.addEventListener('mousedown', handleStart);
         window.addEventListener('mousemove', handleMove);
@@ -1418,7 +1445,7 @@
         // Controles de rotação da câmera
         const onMouseDown = (e) => {
             if (e.button !== 0) return;
-            if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.camera-btn')) return;
+            if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.camera-btn') || e.target.closest('.joystick-container')) return;
             isDraggingCamera = true;
             previousMouseX = e.clientX;
             previousMouseY = e.clientY;
@@ -1440,7 +1467,7 @@
 
         const onTouchStart = (e) => {
             const touch = e.touches[0];
-            if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container') || e.target.closest('.camera-btn')) return;
+            if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container') || e.target.closest('.camera-btn') || e.target.closest('.joystick-container')) return;
             if (e.cancelable) e.preventDefault();
             isDraggingCamera = true;
             previousMouseX = touch.clientX;
@@ -1466,7 +1493,7 @@
 
         window.addEventListener('mousedown', (e) => {
             if (playerConfig.hasBomb && gameStarted && raceActive) {
-                if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('#joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker')) return;
+                if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('.joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker')) return;
                 launchBombAtMouse(e.clientX, e.clientY);
             }
         });
@@ -1474,7 +1501,7 @@
         window.addEventListener('touchstart', (e) => {
              if (playerConfig.hasBomb && gameStarted && raceActive) {
                 const touch = e.touches[0];
-                if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('#joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container')) return;
+                if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('.joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container')) return;
                 launchBombAtMouse(touch.clientX, touch.clientY);
              }
         }, { passive: false });
@@ -1877,10 +1904,17 @@
 
                 const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
-                if (keys['ArrowUp'] || keys['w'] || mobileControls.forward) playerConfig.vel.addScaledVector(forward, a);
+                // Teclado
+                if (keys['ArrowUp'] || keys['w']) playerConfig.vel.addScaledVector(forward, a);
                 if (keys['ArrowDown'] || keys['s']) playerConfig.vel.addScaledVector(forward, -a);
-                if (keys['ArrowLeft'] || keys['a'] || mobileControls.left) playerConfig.vel.addScaledVector(right, -a);
-                if (keys['ArrowRight'] || keys['d'] || mobileControls.right) playerConfig.vel.addScaledVector(right, a);
+                if (keys['ArrowLeft'] || keys['a']) playerConfig.vel.addScaledVector(right, -a);
+                if (keys['ArrowRight'] || keys['d']) playerConfig.vel.addScaledVector(right, a);
+
+                // Joystick de Movimento
+                if (moveJoystickInput.x !== 0 || moveJoystickInput.y !== 0) {
+                    playerConfig.vel.addScaledVector(forward, -moveJoystickInput.y * a);
+                    playerConfig.vel.addScaledVector(right, moveJoystickInput.x * a);
+                }
 
                 if (keys[' ']) {
                     requestJump();
