@@ -321,59 +321,51 @@
             opacity: 0.7;
         }
 
-        #joystick-container {
+        .mobile-controls-container {
             position: absolute;
-            bottom: 40px;
-            left: 40px;
+            bottom: 30px;
+            width: 100%;
             display: none;
-            z-index: 10;
-            user-select: none;
-            touch-action: none;
+            justify-content: space-between;
+            padding: 0 30px;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 100;
         }
-        #joystick-base {
-            width: 120px;
-            height: 120px;
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            pointer-events: none;
+        }
+        .control-row {
+            display: flex;
+            gap: 15px;
+            pointer-events: none;
+        }
+        .ctrl-btn {
+            width: 70px;
+            height: 70px;
             background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-        }
-        #joystick-knob {
-            width: 50px;
-            height: 50px;
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 50%;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-        }
-
-        .action-btn {
-            position: absolute;
-            bottom: 60px;
-            right: 60px;
-            width: 80px;
-            height: 80px;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.4);
-            border-radius: 50%;
-            display: none;
-            align-items: center;
-            justify-content: center;
             color: white;
-            font-weight: bold;
-            z-index: 10;
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
+            font-size: 2rem;
             user-select: none;
             touch-action: none;
+            pointer-events: auto;
             cursor: pointer;
+            transition: all 0.2s;
         }
-        .action-btn:active {
+        .ctrl-btn:active {
+            background: rgba(255, 255, 255, 0.3);
             transform: scale(0.9);
-            background: rgba(255, 255, 255, 0.4);
         }
 
         #msg { display: none; text-align: center; }
@@ -634,13 +626,18 @@
     <div id="status-text"></div>
 </div>
 
-<div id="joystick-container">
-    <div id="joystick-base">
-        <div id="joystick-knob"></div>
+<div id="mobile-controls" class="mobile-controls-container">
+    <div class="control-group">
+        <div id="ctrl-jump" class="ctrl-btn">⏫</div>
+        <div class="control-row">
+            <div id="ctrl-left" class="ctrl-btn">◀️</div>
+            <div id="ctrl-right" class="ctrl-btn">▶️</div>
+        </div>
+    </div>
+    <div class="control-group" style="justify-content: flex-end;">
+        <div id="ctrl-forward" class="ctrl-btn" style="width: 90px; height: 90px; font-size: 2.5rem; margin-bottom: 10px;">🔼</div>
     </div>
 </div>
-
-<div id="jump-button" class="action-btn">PULAR</div>
 
 <script>
     const BLADE_CONFIGS = {
@@ -758,6 +755,7 @@
     let previousMouseX = 0;
     let previousMouseY = 0;
     let keys = {};
+    let mobileControls = { forward: false, left: false, right: false, jump: false };
     let gameOver = false;
     let gameStarted = false;
     let raceActive = false;
@@ -768,9 +766,6 @@
     let cameraShake = 0;
     let cameraZoom = 1.0;
     const CAMERA_OFFSET = new THREE.Vector3(0, 40, 35);
-
-    let joystick = { x: 0, y: 0, active: false };
-    const JOYSTICK_MAX_RADIUS = 50;
 
     const ARENA_RADIUS = 100;
 
@@ -1008,6 +1003,43 @@
         try { SoundManager.playCollect(); } catch(e){}
     }
 
+    function initMobileControls() {
+        const btns = {
+            'ctrl-forward': 'forward',
+            'ctrl-left': 'left',
+            'ctrl-right': 'right',
+            'ctrl-jump': 'jump'
+        };
+
+        Object.keys(btns).forEach(id => {
+            const el = document.getElementById(id);
+            const action = btns[id];
+
+            const startAction = (e) => {
+                e.preventDefault();
+                if (action === 'jump') {
+                    requestJump();
+                } else {
+                    mobileControls[action] = true;
+                }
+            };
+
+            const endAction = (e) => {
+                e.preventDefault();
+                mobileControls[action] = false;
+            };
+
+            el.addEventListener('touchstart', startAction, { passive: false });
+            el.addEventListener('touchend', endAction, { passive: false });
+            el.addEventListener('touchcancel', endAction, { passive: false });
+
+            // Support for mouse testing
+            el.addEventListener('mousedown', startAction);
+            el.addEventListener('mouseup', endAction);
+            el.addEventListener('mouseleave', endAction);
+        });
+    }
+
     function initPreview() {
         const container = document.getElementById('preview-container');
         previewScene = new THREE.Scene();
@@ -1181,8 +1213,7 @@
         window.addEventListener('keydown', e => keys[e.key] = true);
         window.addEventListener('keyup', e => keys[e.key] = false);
 
-        initJoystick();
-        initJumpButton();
+        initMobileControls();
         initPreview();
 
         window.addEventListener('wheel', (e) => {
@@ -1193,7 +1224,7 @@
         // Controles de rotação da câmera
         const onMouseDown = (e) => {
             if (e.button !== 0) return;
-            if (e.target.closest('#joystick-container') || e.target.closest('#jump-button') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.camera-btn')) return;
+            if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.camera-btn')) return;
             isDraggingCamera = true;
             previousMouseX = e.clientX;
             previousMouseY = e.clientY;
@@ -1215,7 +1246,7 @@
 
         const onTouchStart = (e) => {
             const touch = e.touches[0];
-            if (e.target.closest('#joystick-container') || e.target.closest('#jump-button') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container') || e.target.closest('.camera-btn')) return;
+            if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container') || e.target.closest('.camera-btn')) return;
             if (e.cancelable) e.preventDefault();
             isDraggingCamera = true;
             previousMouseX = touch.clientX;
@@ -1242,65 +1273,6 @@
         animate();
     }
 
-    function initJoystick() {
-        const container = document.getElementById('joystick-container');
-        const base = document.getElementById('joystick-base');
-        const knob = document.getElementById('joystick-knob');
-
-        const handleTouch = (e) => {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = base.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-
-            let dx = touch.clientX - centerX;
-            let dy = touch.clientY - centerY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (dist > JOYSTICK_MAX_RADIUS) {
-                dx *= JOYSTICK_MAX_RADIUS / dist;
-                dy *= JOYSTICK_MAX_RADIUS / dist;
-            }
-
-            joystick.x = dx / JOYSTICK_MAX_RADIUS;
-            joystick.y = dy / JOYSTICK_MAX_RADIUS;
-            joystick.active = true;
-
-            knob.style.transform = `translate(${dx}px, ${dy}px)`;
-        };
-
-        container.ontouchstart = (e) => {
-            joystick.active = true;
-            handleTouch(e);
-        };
-
-        container.ontouchmove = handleTouch;
-
-        container.ontouchend = () => {
-            joystick.active = false;
-            joystick.x = 0;
-            joystick.y = 0;
-            knob.style.transform = `translate(0px, 0px)`;
-        };
-    }
-
-    function initJumpButton() {
-        const btn = document.getElementById('jump-button');
-        btn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            requestJump();
-        });
-        btn.addEventListener('mousedown', (e) => {
-            requestJump();
-        });
-
-        const camBtn = document.getElementById('camera-toggle');
-        camBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            toggleCamera();
-        });
-    }
 
     function createBlade(color, configKey = 'classic', isPlayer = false) {
         const config = BLADE_CONFIGS[configKey] || BLADE_CONFIGS['classic'];
@@ -1439,8 +1411,7 @@
 
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('ui').style.display = 'block';
-        document.getElementById('joystick-container').style.display = 'block';
-        document.getElementById('jump-button').style.display = 'flex';
+        document.getElementById('mobile-controls').style.display = 'flex';
         gameStarted = true;
 
         startCountdown();
@@ -1513,6 +1484,7 @@
         document.getElementById('msg').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
+        document.getElementById('mobile-controls').style.display = 'none';
         gameStarted = false;
         currentLevel = 1;
         playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
@@ -1632,15 +1604,10 @@
 
                 const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
-                if (keys['ArrowUp'] || keys['w']) playerConfig.vel.addScaledVector(forward, a);
+                if (keys['ArrowUp'] || keys['w'] || mobileControls.forward) playerConfig.vel.addScaledVector(forward, a);
                 if (keys['ArrowDown'] || keys['s']) playerConfig.vel.addScaledVector(forward, -a);
-                if (keys['ArrowLeft'] || keys['a']) playerConfig.vel.addScaledVector(right, -a);
-                if (keys['ArrowRight'] || keys['d']) playerConfig.vel.addScaledVector(right, a);
-
-                if (joystick.active) {
-                    playerConfig.vel.addScaledVector(forward, -joystick.y * a);
-                    playerConfig.vel.addScaledVector(right, joystick.x * a);
-                }
+                if (keys['ArrowLeft'] || keys['a'] || mobileControls.left) playerConfig.vel.addScaledVector(right, -a);
+                if (keys['ArrowRight'] || keys['d'] || mobileControls.right) playerConfig.vel.addScaledVector(right, a);
 
                 if (keys[' ']) {
                     requestJump();
