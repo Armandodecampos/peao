@@ -680,6 +680,11 @@
     let currentShapeIndex = 0;
 
     let currentLevel = 1;
+    let camAngleH = 0;
+    let camAngleV = 0.4;
+    let isDraggingCamera = false;
+    let previousMouseX = 0;
+    let previousMouseY = 0;
     let keys = {};
     let gameOver = false;
     let gameStarted = false;
@@ -1115,6 +1120,54 @@
             cameraZoom += e.deltaY * 0.001;
             cameraZoom = THREE.MathUtils.clamp(cameraZoom, 0.5, 2.5);
         }, { passive: true });
+
+        // Controles de rotação da câmera
+        const onMouseDown = (e) => {
+            if (e.button !== 0) return;
+            if (e.target.closest('#joystick-container') || e.target.closest('#jump-button') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker')) return;
+            isDraggingCamera = true;
+            previousMouseX = e.clientX;
+            previousMouseY = e.clientY;
+        };
+        const onMouseMove = (e) => {
+            if (!isDraggingCamera) return;
+            const dx = e.clientX - previousMouseX;
+            const dy = e.clientY - previousMouseY;
+            camAngleH -= dx * 0.005;
+            camAngleV = THREE.MathUtils.clamp(camAngleV + dy * 0.005, 0.1, Math.PI / 2.1);
+            previousMouseX = e.clientX;
+            previousMouseY = e.clientY;
+        };
+        const onMouseUp = () => { isDraggingCamera = false; };
+
+        window.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+
+        const onTouchStart = (e) => {
+            const touch = e.touches[0];
+            if (e.target.closest('#joystick-container') || e.target.closest('#jump-button') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker')) return;
+            if (e.cancelable) e.preventDefault();
+            isDraggingCamera = true;
+            previousMouseX = touch.clientX;
+            previousMouseY = touch.clientY;
+        };
+        const onTouchMove = (e) => {
+            if (!isDraggingCamera) return;
+            if (e.cancelable) e.preventDefault();
+            const touch = e.touches[0];
+            const dx = touch.clientX - previousMouseX;
+            const dy = touch.clientY - previousMouseY;
+            camAngleH -= dx * 0.005;
+            camAngleV = THREE.MathUtils.clamp(camAngleV + dy * 0.005, 0.1, Math.PI / 2.1);
+            previousMouseX = touch.clientX;
+            previousMouseY = touch.clientY;
+        };
+        const onTouchEnd = () => { isDraggingCamera = false; };
+
+        window.addEventListener('touchstart', onTouchStart, { passive: false });
+        window.addEventListener('touchmove', onTouchMove, { passive: false });
+        window.addEventListener('touchend', onTouchEnd);
 
         animate();
     }
@@ -1734,11 +1787,15 @@
 
         // Update Camera to follow player
         if (player) {
-            const camDist = 40 * cameraZoom;
-            const camHeight = 25 * cameraZoom;
+            const camDist = 18 * cameraZoom;
 
-            const targetPos = player.position.clone().add(new THREE.Vector3(0, camHeight, camDist));
-            camera.position.lerp(targetPos, 0.05);
+            const targetPos = new THREE.Vector3(
+                player.position.x + camDist * Math.sin(camAngleH) * Math.cos(camAngleV),
+                player.position.y + camDist * Math.sin(camAngleV) + 1.5,
+                player.position.z + camDist * Math.cos(camAngleH) * Math.cos(camAngleV)
+            );
+
+            camera.position.lerp(targetPos, 0.1);
 
             // Camera Shake relative to follow position
             if (cameraShake > 0) {
@@ -1748,7 +1805,7 @@
                 if (cameraShake < 0.01) cameraShake = 0;
             }
 
-            camera.lookAt(player.position.x, 0, player.position.z);
+            camera.lookAt(player.position.x, 1.2, player.position.z);
         }
 
         renderer.render(scene, camera);
