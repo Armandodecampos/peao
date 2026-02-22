@@ -1193,7 +1193,7 @@
         // Controles de rotação da câmera
         const onMouseDown = (e) => {
             if (e.button !== 0) return;
-            if (e.target.closest('#joystick-container') || e.target.closest('#jump-button') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker')) return;
+            if (e.target.closest('#joystick-container') || e.target.closest('#jump-button') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.camera-btn')) return;
             isDraggingCamera = true;
             previousMouseX = e.clientX;
             previousMouseY = e.clientY;
@@ -1215,7 +1215,7 @@
 
         const onTouchStart = (e) => {
             const touch = e.touches[0];
-            if (e.target.closest('#joystick-container') || e.target.closest('#jump-button') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container')) return;
+            if (e.target.closest('#joystick-container') || e.target.closest('#jump-button') || e.target.closest('.main-btn') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container') || e.target.closest('.camera-btn')) return;
             if (e.cancelable) e.preventDefault();
             isDraggingCamera = true;
             previousMouseX = touch.clientX;
@@ -1293,6 +1293,12 @@
         });
         btn.addEventListener('mousedown', (e) => {
             requestJump();
+        });
+
+        const camBtn = document.getElementById('camera-toggle');
+        camBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            toggleCamera();
         });
     }
 
