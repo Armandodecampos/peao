@@ -1606,8 +1606,15 @@
 
                 if (keys['ArrowUp'] || keys['w'] || mobileControls.forward) playerConfig.vel.addScaledVector(forward, a);
                 if (keys['ArrowDown'] || keys['s']) playerConfig.vel.addScaledVector(forward, -a);
-                if (keys['ArrowLeft'] || keys['a'] || mobileControls.left) playerConfig.vel.addScaledVector(right, -a);
-                if (keys['ArrowRight'] || keys['d'] || mobileControls.right) playerConfig.vel.addScaledVector(right, a);
+
+                if (keys['ArrowLeft'] || keys['a'] || mobileControls.left) {
+                    playerConfig.vel.addScaledVector(right, -a);
+                    camAngleH += 0.03; // Gira a câmera automaticamente para a esquerda
+                }
+                if (keys['ArrowRight'] || keys['d'] || mobileControls.right) {
+                    playerConfig.vel.addScaledVector(right, a);
+                    camAngleH -= 0.03; // Gira a câmera automaticamente para a direita
+                }
 
                 if (keys[' ']) {
                     requestJump();
