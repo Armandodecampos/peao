@@ -439,6 +439,7 @@
         }
 
         .camera-btn {
+            display: none;
             position: absolute;
             top: 20px;
             left: 20px;
@@ -1328,6 +1329,7 @@
     function changeShape(dir) {
         currentShapeIndex = (currentShapeIndex + dir + shapeKeys.length) % shapeKeys.length;
         updatePreview();
+        saveGame();
         try { SoundManager.playCollect(); } catch(e){}
     }
 
@@ -1366,11 +1368,41 @@
             availablePoints++;
         }
         updateSkillsUI();
+        saveGame();
         try { SoundManager.playCollect(); } catch(e){}
     }
 
     function updatePreviewColor() {
         updatePreview();
+        saveGame();
+    }
+
+    function saveGame() {
+        const data = {
+            currentLevel,
+            playerSkills,
+            availablePoints,
+            playerColor: document.getElementById('player-color').value,
+            currentShapeIndex
+        };
+        localStorage.setItem('battleBladesProgress', JSON.stringify(data));
+    }
+
+    function loadGame() {
+        const saved = localStorage.getItem('battleBladesProgress');
+        if (saved) {
+            const data = JSON.parse(saved);
+            currentLevel = data.currentLevel || 1;
+            playerSkills = data.playerSkills || { forca: 0, velocidade: 0, resistencia: 0 };
+            availablePoints = data.availablePoints !== undefined ? data.availablePoints : 3;
+            if (data.playerColor) {
+                document.getElementById('player-color').value = data.playerColor;
+            }
+            currentShapeIndex = data.currentShapeIndex || 0;
+
+            updateSkillsUI();
+            updatePreview();
+        }
     }
 
     function init() {
@@ -1617,6 +1649,7 @@
     }
 
     function startGame() {
+        saveGame();
         // Agora startGame apenas inicia o jogo no nível atual definido.
         // O reset para nível 1 acontece apenas em resetGame().
         document.getElementById('level-ui').innerText = `NÍVEL ${currentLevel}`;
@@ -1694,6 +1727,7 @@
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('ui').style.display = 'block';
         document.getElementById('mobile-controls').style.display = 'flex';
+        document.getElementById('camera-toggle').style.display = 'flex';
         gameStarted = true;
 
         startCountdown();
@@ -1774,6 +1808,8 @@
         document.getElementById('msg').style.display = 'none';
         document.getElementById('level-ui').style.display = 'none';
         document.getElementById('mobile-controls').style.display = 'none';
+        document.getElementById('camera-toggle').style.display = 'none';
+        document.getElementById('ui').style.display = 'none';
         gameStarted = false;
 
         // Ativa/Desativa o botão CONTINUAR dependendo do progresso
@@ -1787,6 +1823,7 @@
         playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
         availablePoints = 3;
         updateSkillsUI();
+        saveGame();
         continueGame();
     }
 
@@ -1801,6 +1838,8 @@
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
         document.getElementById('mobile-controls').style.display = 'none';
+        document.getElementById('camera-toggle').style.display = 'none';
+        document.getElementById('ui').style.display = 'none';
         gameStarted = false;
         updateSkillsUI();
     }
@@ -1814,9 +1853,13 @@
         currentLevel++;
         availablePoints++;
         updateSkillsUI();
+        saveGame();
         document.getElementById('msg').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
+        document.getElementById('mobile-controls').style.display = 'none';
+        document.getElementById('camera-toggle').style.display = 'none';
+        document.getElementById('ui').style.display = 'none';
         gameStarted = false;
     }
 
@@ -2262,6 +2305,7 @@
     });
 
     init();
+    loadGame();
     updateSkillsUI();
 </script>
 </body>
