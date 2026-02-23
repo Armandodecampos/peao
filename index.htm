@@ -666,9 +666,9 @@
         <div id="move-joystick-container" class="joystick-container">
             <div id="move-joystick-handle" class="joystick-handle"></div>
         </div>
-        <div id="ctrl-jump" class="ctrl-btn">PULO</div>
     </div>
-    <div class="control-group" style="justify-content: flex-end;">
+    <div class="control-group">
+        <div id="ctrl-jump" class="ctrl-btn">PULO</div>
         <div id="joystick-container" class="joystick-container">
             <div id="joystick-handle" class="joystick-handle"></div>
         </div>
@@ -1500,7 +1500,7 @@
 
         window.addEventListener('touchstart', (e) => {
              if (playerConfig.hasBomb && gameStarted && raceActive) {
-                const touch = e.touches[0];
+                const touch = e.changedTouches[0];
                 if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('.joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container')) return;
                 launchBombAtMouse(touch.clientX, touch.clientY);
              }
