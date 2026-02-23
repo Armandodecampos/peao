@@ -577,6 +577,22 @@
     🎥
 </div>
 
+<div id="main-menu" class="overlay" style="display: none;">
+    <div class="header-section">
+        <h1 class="glow-text">BATTLE BLADES 3D</h1>
+        <p class="subtitle orbitron">MENU PRINCIPAL</p>
+    </div>
+    <div class="start-container">
+        <div class="main-panel glass" style="justify-content: center; align-items: center; gap: 30px; padding: 50px;">
+            <button class="main-btn orbitron" style="width: 100%; max-width: 400px;" onclick="startNewGame()">NOVO JOGO</button>
+            <button id="btn-continue" class="main-btn orbitron" style="width: 100%; max-width: 400px; background: #666; color: #fff;" onclick="continueGame()">CONTINUAR</button>
+        </div>
+    </div>
+    <div class="footer-controls" style="opacity: 0.5; pointer-events: none;">
+        <p style="font-size: 0.8rem; letter-spacing: 2px;">V 2.0</p>
+    </div>
+</div>
+
 <div id="start-screen" class="overlay" style="display: none;">
     <div class="header-section">
         <h1 class="glow-text">BATTLE BLADES 3D</h1>
@@ -640,8 +656,9 @@
             </div>
         </div>
     </div>
-    <div class="footer-controls">
+    <div class="footer-controls" style="flex-direction: column; gap: 10px;">
         <button id="btn-start-battle" class="main-btn orbitron" onclick="startGame()">INICIAR</button>
+        <button class="main-btn orbitron" style="background: #e74c3c; color: white; font-size: 1rem; padding: 10px 40px;" onclick="showMainMenu()">SAIR DO JOGO</button>
     </div>
 </div>
 
@@ -1399,7 +1416,7 @@
         loadingManager.onLoad = () => {
             setTimeout(() => {
                 document.getElementById('loading-screen').style.display = 'none';
-                document.getElementById('start-screen').style.display = 'flex';
+                showMainMenu();
             }, 500);
         };
         // Forçar disparo do onLoad pois não há mais texturas externas
@@ -1751,16 +1768,46 @@
         }
     }
 
-    function resetGame() {
+    function showMainMenu() {
+        document.getElementById('main-menu').style.display = 'flex';
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('msg').style.display = 'none';
+        document.getElementById('level-ui').style.display = 'none';
+        document.getElementById('mobile-controls').style.display = 'none';
+        gameStarted = false;
+
+        // Ativa/Desativa o botão CONTINUAR dependendo do progresso
+        const canContinue = currentLevel > 1 || playerSkills.forca > 0 || playerSkills.velocidade > 0 || playerSkills.resistencia > 0 || availablePoints < 3;
+        document.getElementById('btn-continue').style.opacity = canContinue ? "1" : "0.5";
+        document.getElementById('btn-continue').disabled = !canContinue;
+    }
+
+    function startNewGame() {
+        currentLevel = 1;
+        playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
+        availablePoints = 3;
+        updateSkillsUI();
+        continueGame();
+    }
+
+    function continueGame() {
+        document.getElementById('main-menu').style.display = 'none';
+        document.getElementById('start-screen').style.display = 'flex';
+        updateSkillsUI();
+    }
+
+    function backToOptions() {
         document.getElementById('msg').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
         document.getElementById('mobile-controls').style.display = 'none';
         gameStarted = false;
-        currentLevel = 1;
-        playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
-        availablePoints = 3;
         updateSkillsUI();
+    }
+
+    function resetGame() {
+        // Redireciona para o menu principal
+        showMainMenu();
     }
 
     function nextLevel() {
@@ -2200,7 +2247,7 @@
                 `;
 
                 st.innerHTML = win ? winContent : lossContent;
-                st.innerHTML += `<br><button class="main-btn" style="margin-top: 10px; font-size: 1rem; padding: 10px 30px; background: #666; color: #fff;" onclick="resetGame()">SAIR</button>`;
+                st.innerHTML += `<br><button class="main-btn" style="margin-top: 10px; font-size: 1rem; padding: 10px 30px; background: #666; color: #fff;" onclick="backToOptions()">VOLTAR</button>`;
 
                 document.getElementById('msg').style.display = 'flex';
                 resultPending = false;
