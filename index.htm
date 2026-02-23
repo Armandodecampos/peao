@@ -655,7 +655,7 @@
 
 <div id="start-screen" class="overlay" style="display: none;">
     <div id="top-stats-bar" class="glass">
-        <div class="stat-item">
+        <div class="stat-item" onclick="toggleShopModal(true)" style="cursor: pointer;">
             <label>MOEDAS</label>
             <span id="total-coins" class="points-val" style="color: #f1c40f;">0</span>
         </div>
@@ -730,6 +730,31 @@
                 </div>
             </div>
             <button class="main-btn orbitron" style="margin-top: 20px; font-size: 1.1rem; padding: 12px 40px;" onclick="toggleSkillsModal(false)">VOLTAR</button>
+        </div>
+    </div>
+</div>
+
+<div id="shop-modal" class="overlay" style="display: none; justify-content: center;">
+    <div class="header-section">
+        <h1 class="glow-text">LOJA</h1>
+        <div style="margin-top: 10px;">
+            <span style="font-size: 0.9rem; color: #aaa; letter-spacing: 2px;">SUAS MOEDAS:</span>
+            <span id="shop-coins" class="points-val" style="color: #f1c40f;">0</span>
+        </div>
+    </div>
+    <div class="start-container" style="justify-content: center;">
+        <div class="main-panel glass" style="max-width: 500px; padding: 30px; display: flex; flex-direction: column; align-items: center; gap: 20px;">
+            <div style="width: 100%; display: flex; flex-direction: column; gap: 15px; align-items: center;">
+                <div class="skill-row" style="height: auto; padding: 20px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <span class="skill-name" style="font-size: 1rem;">PEÃO AJUDANTE</span>
+                        <span style="font-size: 0.7rem; color: #aaa;">Ajuda você na próxima rodada.</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 5 MOEDAS</span>
+                    </div>
+                    <button id="btn-buy-helper" class="main-btn" style="padding: 10px 20px; font-size: 0.9rem;" onclick="buyHelper()">COMPRAR</button>
+                </div>
+            </div>
+            <button class="main-btn orbitron" style="margin-top: 20px; font-size: 1.1rem; padding: 12px 40px;" onclick="toggleShopModal(false)">VOLTAR</button>
         </div>
     </div>
 </div>
@@ -874,6 +899,10 @@
 
     let currentLevel = 1;
     let totalCoins = 0;
+    let hasHelper = false;
+    let helper = null;
+    let helperConfig = null;
+    let helperUI = null;
     let camAngleH = 0;
     let camAngleV = 0.4;
     let camDistPresets = [12, 25, 45];
@@ -1246,6 +1275,35 @@
         try { SoundManager.playCollect(); } catch(e){}
     }
 
+    function toggleShopModal(show) {
+        const modal = document.getElementById('shop-modal');
+        if (!modal) return;
+        modal.style.display = show ? 'flex' : 'none';
+        if (show) {
+            document.getElementById('shop-coins').innerText = totalCoins;
+            const btn = document.getElementById('btn-buy-helper');
+            if (hasHelper) {
+                btn.innerText = "JÁ POSSUI";
+                btn.disabled = true;
+            } else {
+                btn.innerText = "COMPRAR";
+                btn.disabled = totalCoins < 5;
+            }
+        }
+        try { SoundManager.playCollect(); } catch(e){}
+    }
+
+    function buyHelper() {
+        if (totalCoins >= 5 && !hasHelper) {
+            totalCoins -= 5;
+            hasHelper = true;
+            updateSkillsUI();
+            toggleShopModal(true);
+            saveGame();
+            try { SoundManager.playCollect(); } catch(e){}
+        }
+    }
+
     function toggleSettings() {
         if (!gameStarted || gameOver) return;
         isPaused = !isPaused;
@@ -1486,7 +1544,8 @@
             availablePoints,
             playerColor: document.getElementById('player-color').value,
             currentShapeIndex,
-            totalCoins
+            totalCoins,
+            hasHelper
         };
         localStorage.setItem('battleBladesProgress', JSON.stringify(data));
     }
@@ -1503,6 +1562,7 @@
             }
             currentShapeIndex = data.currentShapeIndex || 0;
             totalCoins = data.totalCoins || 0;
+            hasHelper = data.hasHelper || false;
 
             updateSkillsUI();
             updatePreview();
@@ -1687,7 +1747,7 @@
     }
 
 
-    function createBlade(color, configKey = 'classic', isPlayer = false) {
+    function createBlade(color, configKey = 'classic', isPlayer = false, label = "ADVERSÁRIO") {
         const config = BLADE_CONFIGS[configKey] || BLADE_CONFIGS['classic'];
         const pivot = new THREE.Group();
         const spinner = new THREE.Group();
@@ -1698,7 +1758,7 @@
             ui = document.createElement('div');
             ui.className = 'floating-ui';
             ui.innerHTML = `
-                <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">ADVERSÁRIO</div>
+                <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">${label}</div>
                 <div class="stat-bar"><div class="fill" style="background: #ff416c; box-shadow: 0 0 10px #ff416c;"></div></div>
             `;
             document.getElementById('ui').appendChild(ui);
@@ -1768,6 +1828,13 @@
         if(player) {
             scene.remove(player);
         }
+        if (helper) {
+            scene.remove(helper);
+            if (helperUI) helperUI.remove();
+            helper = null;
+            helperConfig = null;
+            helperUI = null;
+        }
         enemies.forEach(e => {
             scene.remove(e.pivot);
             if (e.ui) e.ui.remove();
@@ -1783,10 +1850,11 @@
         launchedBombs.forEach(lb => scene.remove(lb.mesh));
         launchedBombs = [];
 
-        const colorVal = document.getElementById('player-color').value.replace('#', '0x');
+        const playerColorHex = document.getElementById('player-color').value;
+        const playerColorNum = parseInt(playerColorHex.replace('#', '0x'));
         const shapeKey = shapeKeys[currentShapeIndex];
 
-        playerConfig.color = parseInt(colorVal);
+        playerConfig.color = playerColorNum;
         const pObj = createBlade(playerConfig.color, shapeKey, true);
         player = pObj.pivot;
         scene.add(player);
@@ -1798,10 +1866,32 @@
         // Aplica Habilidades (Impacto reduzido para 5% por ponto)
         playerConfig.accel = pObj.config.accel * (1 + playerSkills.velocidade * 0.05);
 
+        if (hasHelper) {
+            const hObj = createBlade(playerConfig.color, shapeKey, false, "AJUDANTE");
+            helper = hObj.pivot;
+            helperUI = hObj.ui;
+            helperUI.id = 'helper-ui';
+            scene.add(helper);
+            helperConfig = {
+                vel: new THREE.Vector3(0, 0, 0),
+                stamina: 100,
+                rotationSpeed: 1.5,
+                wobble: 0,
+                hitWobble: 0,
+                isFallen: false,
+                accel: playerConfig.accel,
+                mass: pObj.config.mass,
+                collisionRadius: pObj.config.collisionRadius,
+                collisionPoints: pObj.config.collisionPoints,
+                color: playerConfig.color
+            };
+        }
+
         const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60, 0xe67e22, 0x16a085, 0x2980b9];
+        let eColor = enemyColors[0];
+        if (playerColorNum === eColor) eColor = enemyColors[1];
 
         for(let i=0; i<currentLevel; i++) {
-            const eColor = enemyColors[i % enemyColors.length];
             const eShapeKey = shapeKeys[Math.floor(Math.random() * shapeKeys.length)];
             const eBladeObj = createBlade(eColor, eShapeKey, false);
             scene.add(eBladeObj.pivot);
@@ -1874,6 +1964,17 @@
         document.getElementById('bomb-ui').style.display = 'none';
         playerConfig.wobble = 0;
         playerConfig.hitWobble = 0;
+
+        if (helper) {
+            helper.position.set(spawnDist, 0, spawnDist);
+            helper.rotation.set(0,0,0);
+            if (helper.children[0]) helper.children[0].rotation.set(0,0,0);
+            helperConfig.vel.set(0,0,0);
+            helperConfig.stamina = 100;
+            helperConfig.isFallen = false;
+            helperConfig.wobble = 0;
+            helperConfig.hitWobble = 0;
+        }
 
         enemies.forEach((e, i) => {
             const angle = ((i + 1) / (enemies.length + 1)) * Math.PI * 2;
@@ -1983,7 +2084,9 @@
     }
 
     function checkCollision() {
-        const allBlades = [{mesh: player, cfg: playerConfig}, ...enemies.map((e, i) => ({mesh: e.pivot, cfg: enemyConfigs[i]}))];
+        const allBlades = [{mesh: player, cfg: playerConfig}];
+        if (helper) allBlades.push({mesh: helper, cfg: helperConfig});
+        allBlades.push(...enemies.map((e, i) => ({mesh: e.pivot, cfg: enemyConfigs[i]})));
 
         // Colisões com Bombas
         if (!playerConfig.isFallen && !playerConfig.hasBomb) {
@@ -2023,6 +2126,9 @@
                 const b2 = allBlades[j];
 
                 if (b1.cfg.isFallen || b2.cfg.isFallen) continue;
+
+                // Sem fogo amigo entre jogador e ajudante
+                if ((b1.mesh === player && b2.mesh === helper) || (b1.mesh === helper && b2.mesh === player)) continue;
 
                 const dist = b1.mesh.position.distanceTo(b2.mesh.position);
                 const combinedRadius = (b1.cfg.collisionRadius || 1.65) + (b2.cfg.collisionRadius || 1.65);
@@ -2136,6 +2242,26 @@
                 }
             }
 
+            // IA do Ajudante
+            if (helper && !helperConfig.isFallen) {
+                let target = null;
+                let minDist = Infinity;
+                enemies.forEach((e, i) => {
+                    const c = enemyConfigs[i];
+                    if (!c.isFallen) {
+                        const d = helper.position.distanceTo(e.pivot.position);
+                        if (d < minDist) {
+                            minDist = d;
+                            target = e.pivot.position;
+                        }
+                    }
+                });
+                if (target) {
+                    const dir = new THREE.Vector3().subVectors(target, helper.position).normalize();
+                    helperConfig.vel.addScaledVector(dir, helperConfig.accel);
+                }
+            }
+
             // IA de Batalha
             enemies.forEach((e, i) => {
                 const c = enemyConfigs[i];
@@ -2169,8 +2295,17 @@
                     }
 
                     if (!target) {
-                        if (!playerConfig.isFallen) {
+                        let playerAlive = !playerConfig.isFallen;
+                        let helperAlive = helper && !helperConfig.isFallen;
+
+                        if (playerAlive && helperAlive) {
+                            const dPlayer = e.pivot.position.distanceTo(player.position);
+                            const dHelper = e.pivot.position.distanceTo(helper.position);
+                            target = dPlayer < dHelper ? player.position : helper.position;
+                        } else if (playerAlive) {
                             target = player.position;
+                        } else if (helperAlive) {
+                            target = helper.position;
                         } else {
                             target = new THREE.Vector3(0, 0, 0);
                         }
@@ -2197,9 +2332,10 @@
         }
 
         const allBlades = [
-            {obj: player, c: playerConfig, ui: document.getElementById('player-ui')},
-            ...enemies.map((e, i) => ({obj: e.pivot, c: enemyConfigs[i], ui: e.ui}))
+            {obj: player, c: playerConfig, ui: document.getElementById('player-ui')}
         ];
+        if (helper) allBlades.push({obj: helper, c: helperConfig, ui: helperUI});
+        allBlades.push(...enemies.map((e, i) => ({obj: e.pivot, c: enemyConfigs[i], ui: e.ui})));
 
         allBlades.forEach(({obj, c}) => {
             obj.position.x += c.vel.x;
@@ -2343,12 +2479,12 @@
                 if (fill) {
                     const stam = Math.max(0, item.c.stamina);
                     fill.style.width = stam + '%';
-                    fill.style.background = stam < 30 ? '#ff3300' : (item.ui.id === 'player-ui' ? '#00d2ff' : '#ff416c');
+                    fill.style.background = stam < 30 ? '#ff3300' : (item.ui.id === 'player-ui' || item.ui.id === 'helper-ui' ? '#00d2ff' : '#ff416c');
                 }
             }
         });
 
-        if (playerConfig && !playerConfig.isFallen) {
+        if (raceActive && playerConfig && !playerConfig.isFallen) {
             SoundManager.updateSpin(playerConfig.rotationSpeed);
         } else {
             SoundManager.stopSpin();
@@ -2401,11 +2537,18 @@
         }
 
         if (end) {
+            raceActive = false;
             resultPending = true;
             setTimeout(() => {
                 if (!resultPending) return;
                 gameOver = true;
-                if (win) SoundManager.playWin(); else SoundManager.playLoss();
+                if (win) {
+                    SoundManager.playWin();
+                } else {
+                    SoundManager.playLoss();
+                    hasHelper = false;
+                    saveGame();
+                }
 
                 const st = document.getElementById('status-text');
                 const winContent = `
