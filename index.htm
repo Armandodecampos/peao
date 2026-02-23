@@ -401,7 +401,7 @@
             pointer-events: none;
         }
 
-        #msg { display: none; text-align: center; }
+        #msg { display: none; text-align: center; background: #000; }
         #status-text { width: 100%; }
 
         #countdown-overlay {
@@ -2279,18 +2279,22 @@
 
                 const st = document.getElementById('status-text');
                 const winContent = `
-                    <h2 style="color: #2ecc71">VOCÊ VENCEU O NÍVEL ${currentLevel}!</h2>
-                    <p style="font-size: 1.2rem;">Você ganhou 1 ponto de habilidade!</p>
+                    <h2 style="color: #2ecc71">Vitória!</h2>
+                    <p style="font-size: 1.2rem;">Você venceu o nível ${currentLevel} e ganhou 1 ponto de habilidade!</p>
                     <button class="main-btn" style="margin-top: 20px;" onclick="nextLevel()">DISTRIBUIR PONTOS</button>
                 `;
                 const lossContent = `
-                    <h2 style="color: #f1c40f">VOCÊ CAIU!</h2>
+                    <h2 style="color: #f1c40f">Derrota!</h2>
                     <p style="font-size: 1.2rem;">Tente novamente o nível ${currentLevel}.</p>
                     <button class="main-btn" style="margin-top: 20px;" onclick="startGame(true)">TENTAR NOVAMENTE</button>
                 `;
 
                 st.innerHTML = win ? winContent : lossContent;
                 st.innerHTML += `<br><button class="main-btn" style="margin-top: 10px; font-size: 1rem; padding: 10px 30px; background: #666; color: #fff;" onclick="backToOptions()">VOLTAR</button>`;
+
+                document.getElementById('camera-toggle').style.display = 'none';
+                document.getElementById('mobile-controls').style.display = 'none';
+                document.getElementById('ui').style.display = 'none';
 
                 document.getElementById('msg').style.display = 'flex';
                 resultPending = false;
