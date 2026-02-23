@@ -607,6 +607,44 @@
             backdrop-filter: blur(15px);
             -webkit-backdrop-filter: blur(15px);
         }
+
+        #item-slot {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 70px;
+            height: 70px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 130;
+            pointer-events: none;
+        }
+        .item-slot-inner {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        #item-slot-label {
+            font-size: 0.5rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: #aaa;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+        #item-slot-icon {
+            font-size: 2rem;
+        }
     </style>
 </head>
 <body>
@@ -734,7 +772,7 @@
     </div>
 </div>
 
-<div id="shop-modal" class="overlay" style="display: none; justify-content: center;">
+<div id="shop-modal" class="overlay" style="display: none; justify-content: center; background: #000;">
     <div class="header-section">
         <h1 class="glow-text">LOJA</h1>
         <div style="margin-top: 10px;">
@@ -767,8 +805,11 @@
     <div id="level-ui" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: #f1c40f; font-weight: 900; font-size: 1.5rem; text-shadow: 0 0 10px rgba(0,0,0,0.8); display: none; z-index: 10; letter-spacing: 2px;">
         NÍVEL 1
     </div>
-    <div id="bomb-ui" style="position: absolute; top: 20px; right: 20px; color: #f1c40f; font-weight: 900; font-size: 2rem; display: none; z-index: 10; text-shadow: 0 0 10px rgba(0,0,0,0.8);">
-        💣
+    <div id="item-slot">
+        <div class="item-slot-inner glass">
+            <span id="item-slot-label">Equipado</span>
+            <span id="item-slot-icon">💣</span>
+        </div>
     </div>
 </div>
 
@@ -1219,7 +1260,9 @@
         const explosionRadius = 25;
         const explosionForce = 1.8;
 
-        const allBlades = [{cfg: playerConfig, mesh: player}, ...enemies.map((e, i) => ({cfg: enemyConfigs[i], mesh: e.pivot}))];
+        const allBlades = [{cfg: playerConfig, mesh: player}];
+        if (helper) allBlades.push({cfg: helperConfig, mesh: helper});
+        allBlades.push(...enemies.map((e, i) => ({cfg: enemyConfigs[i], mesh: e.pivot})));
 
         allBlades.forEach(b => {
             if (!b.mesh) return;
@@ -1285,9 +1328,11 @@
             if (hasHelper) {
                 btn.innerText = "JÁ POSSUI";
                 btn.disabled = true;
+                btn.style.opacity = "0.5";
             } else {
                 btn.innerText = "COMPRAR";
                 btn.disabled = totalCoins < 5;
+                btn.style.opacity = totalCoins < 5 ? "0.5" : "1";
             }
         }
         try { SoundManager.playCollect(); } catch(e){}
@@ -1740,7 +1785,7 @@
 
         if (targetPos) {
             playerConfig.hasBomb = false;
-            document.getElementById('bomb-ui').style.display = 'none';
+            document.getElementById('item-slot').style.display = 'none';
             launchedBombs.push(new LaunchedBomb(player.position, targetPos));
             try { SoundManager.playJump(); } catch(e){} // Som de lançamento
         }
@@ -1873,17 +1918,22 @@
             helperUI.id = 'helper-ui';
             scene.add(helper);
             helperConfig = {
+                mesh: helper,
+                ui: helperUI,
                 vel: new THREE.Vector3(0, 0, 0),
                 stamina: 100,
                 rotationSpeed: 1.5,
                 wobble: 0,
                 hitWobble: 0,
                 isFallen: false,
+                hasBomb: false,
                 accel: playerConfig.accel,
                 mass: pObj.config.mass,
                 collisionRadius: pObj.config.collisionRadius,
                 collisionPoints: pObj.config.collisionPoints,
-                color: playerConfig.color
+                color: playerConfig.color,
+                perceivedHearts: new Map(),
+                perceivedBombs: new Map()
             };
         }
 
@@ -1902,18 +1952,22 @@
             });
 
             enemyConfigs.push({
+                mesh: eBladeObj.pivot,
+                ui: eBladeObj.ui,
                 vel: new THREE.Vector3(0, 0, 0),
                 stamina: 100,
                 rotationSpeed: 1.5,
                 wobble: 0,
                 hitWobble: 0,
                 isFallen: false,
+                hasBomb: false,
                 accel: (eBladeObj.config.accel * 0.7) + Math.random() * (eBladeObj.config.accel * 0.4),
                 mass: eBladeObj.config.mass,
                 collisionRadius: eBladeObj.config.collisionRadius,
                 collisionPoints: eBladeObj.config.collisionPoints,
                 color: eColor,
-                perceivedHearts: new Map()
+                perceivedHearts: new Map(),
+                perceivedBombs: new Map()
             });
         }
 
@@ -1961,7 +2015,7 @@
         playerConfig.stamina = 100;
         playerConfig.isFallen = false;
         playerConfig.hasBomb = false;
-        document.getElementById('bomb-ui').style.display = 'none';
+        document.getElementById('item-slot').style.display = 'none';
         playerConfig.wobble = 0;
         playerConfig.hitWobble = 0;
 
@@ -1972,8 +2026,11 @@
             helperConfig.vel.set(0,0,0);
             helperConfig.stamina = 100;
             helperConfig.isFallen = false;
+            helperConfig.hasBomb = false;
             helperConfig.wobble = 0;
             helperConfig.hitWobble = 0;
+            helperConfig.perceivedHearts.clear();
+            helperConfig.perceivedBombs.clear();
         }
 
         enemies.forEach((e, i) => {
@@ -1985,8 +2042,11 @@
             c.vel.set(0,0,0);
             c.stamina = 100;
             c.isFallen = false;
+            c.hasBomb = false;
             c.wobble = 0;
             c.hitWobble = 0;
+            c.perceivedHearts.clear();
+            c.perceivedBombs.clear();
         });
 
         gameOver = false;
@@ -2089,20 +2149,23 @@
         allBlades.push(...enemies.map((e, i) => ({mesh: e.pivot, cfg: enemyConfigs[i]})));
 
         // Colisões com Bombas
-        if (!playerConfig.isFallen && !playerConfig.hasBomb) {
-            bombs.forEach(b => {
-                if (b.active) {
-                    const d = player.position.distanceTo(b.mesh.position);
-                    const pickupRadius = (playerConfig.collisionRadius || 1.65) + 1.2;
+        allBlades.forEach(b => {
+            if (b.cfg.isFallen || b.cfg.hasBomb) return;
+            bombs.forEach(bombItem => {
+                if (bombItem.active) {
+                    const d = b.mesh.position.distanceTo(bombItem.mesh.position);
+                    const pickupRadius = (b.cfg.collisionRadius || 1.65) + 1.2;
                     if (d < pickupRadius) {
-                        b.collect();
-                        playerConfig.hasBomb = true;
-                        document.getElementById('bomb-ui').style.display = 'block';
+                        bombItem.collect();
+                        b.cfg.hasBomb = true;
+                        if (b.mesh === player) {
+                            document.getElementById('item-slot').style.display = 'flex';
+                        }
                         SoundManager.playCollect();
                     }
                 }
             });
-        }
+        });
 
         // Colisões com Corações
         allBlades.forEach(b => {
@@ -2190,12 +2253,20 @@
         hearts = hearts.filter(h => {
             const active = h.update();
             if (!active) {
-                enemyConfigs.forEach(c => c.perceivedHearts.delete(h));
+                if (helperConfig) helperConfig.perceivedHearts.delete(h.mesh.uuid);
+                enemyConfigs.forEach(c => c.perceivedHearts.delete(h.mesh.uuid));
             }
             return active;
         });
 
-        bombs = bombs.filter(b => b.update());
+        bombs = bombs.filter(b => {
+            const active = b.update();
+            if (!active) {
+                if (helperConfig) helperConfig.perceivedBombs.delete(b.mesh.uuid);
+                enemyConfigs.forEach(c => c.perceivedBombs.delete(b.mesh.uuid));
+            }
+            return active;
+        });
         launchedBombs = launchedBombs.filter(lb => lb.update());
 
         if (raceActive && Date.now() - lastHeartSpawn > 10000 && hearts.length < 3) {
@@ -2241,94 +2312,6 @@
                     requestJump();
                 }
             }
-
-            // IA do Ajudante
-            if (helper && !helperConfig.isFallen) {
-                let target = null;
-                let minDist = Infinity;
-                enemies.forEach((e, i) => {
-                    const c = enemyConfigs[i];
-                    if (!c.isFallen) {
-                        const d = helper.position.distanceTo(e.pivot.position);
-                        if (d < minDist) {
-                            minDist = d;
-                            target = e.pivot.position;
-                        }
-                    }
-                });
-                if (target) {
-                    const dir = new THREE.Vector3().subVectors(target, helper.position).normalize();
-                    helperConfig.vel.addScaledVector(dir, helperConfig.accel);
-                }
-            }
-
-            // IA de Batalha
-            enemies.forEach((e, i) => {
-                const c = enemyConfigs[i];
-                if (!c.isFallen) {
-                    let target = null;
-
-                    // Só procura corações se estiver "ferido" (stamina < 70)
-                    if (c.stamina < 70) {
-                        let nearestHeart = null;
-                        let minDist = Infinity;
-
-                        hearts.forEach(h => {
-                            if (h.active) {
-                                // Verifica se já tomou uma decisão sobre este coração
-                                if (!c.perceivedHearts.has(h)) {
-                                    // 70% de chance de "ver" o coração
-                                    c.perceivedHearts.set(h, Math.random() < 0.7);
-                                }
-
-                                if (c.perceivedHearts.get(h)) {
-                                    const d = e.pivot.position.distanceTo(h.mesh.position);
-                                    if (d < minDist) {
-                                        minDist = d;
-                                        nearestHeart = h;
-                                    }
-                                }
-                            }
-                        });
-
-                        if (nearestHeart) target = nearestHeart.mesh.position;
-                    }
-
-                    if (!target) {
-                        let playerAlive = !playerConfig.isFallen;
-                        let helperAlive = helper && !helperConfig.isFallen;
-
-                        if (playerAlive && helperAlive) {
-                            const dPlayer = e.pivot.position.distanceTo(player.position);
-                            const dHelper = e.pivot.position.distanceTo(helper.position);
-                            target = dPlayer < dHelper ? player.position : helper.position;
-                        } else if (playerAlive) {
-                            target = player.position;
-                        } else if (helperAlive) {
-                            target = helper.position;
-                        } else {
-                            target = new THREE.Vector3(0, 0, 0);
-                        }
-                    }
-
-                    const dir = new THREE.Vector3().subVectors(target, e.pivot.position).normalize();
-                    c.vel.addScaledVector(dir, c.accel);
-
-                    // Força de Separação (Evitar bater em aliados)
-                    const separationForce = new THREE.Vector3();
-                    const separationDist = 10;
-                    enemies.forEach((other, j) => {
-                        if (i === j) return;
-                        const dist = e.pivot.position.distanceTo(other.pivot.position);
-                        if (dist < separationDist) {
-                            const diff = new THREE.Vector3().subVectors(e.pivot.position, other.pivot.position);
-                            diff.normalize().divideScalar(dist);
-                            separationForce.add(diff);
-                        }
-                    });
-                    c.vel.addScaledVector(separationForce, 0.015);
-                }
-            });
         }
 
         const allBlades = [
@@ -2452,6 +2435,10 @@
 
         checkCollision();
 
+        // Update AI
+        enemyConfigs.forEach(c => updateAI(c, false));
+        if (helperConfig) updateAI(helperConfig, true);
+
         // Atualizar Stamina Player e UI
         const pStamina = Math.max(0, playerConfig.stamina);
         const pBar = document.getElementById('player-stamina');
@@ -2517,6 +2504,145 @@
         }
 
         renderer.render(scene, camera);
+    }
+
+    function updateAI(config, isHelper) {
+        if (!raceActive || config.isFallen || isPaused) return;
+
+        // Percepção de Itens (Coras e Bombas)
+        if (Math.random() < 0.01) {
+            // Check for hearts (if injured)
+            if (config.stamina < 70 && hearts.length > 0) {
+                hearts.forEach(h => {
+                    if (h.active && !config.perceivedHearts.has(h.mesh.uuid)) {
+                        if (Math.random() < 0.7) config.perceivedHearts.set(h.mesh.uuid, h);
+                    }
+                });
+            }
+            // Check for bombs
+            if (!config.hasBomb && bombs.length > 0) {
+                bombs.forEach(b => {
+                    if (b.active && !config.perceivedBombs.has(b.mesh.uuid)) {
+                        if (Math.random() < 0.3) config.perceivedBombs.set(b.mesh.uuid, b);
+                    }
+                });
+            }
+        }
+
+        // Target priority: Perceived Hearts > Perceived Bombs > Opponent
+        let targetPos = null;
+        if (config.stamina < 70 && config.perceivedHearts.size > 0) {
+            let heartId = config.perceivedHearts.keys().next().value;
+            let targetHeart = config.perceivedHearts.get(heartId);
+            if (targetHeart && targetHeart.active) {
+                targetPos = targetHeart.mesh.position.clone();
+            } else {
+                config.perceivedHearts.delete(heartId);
+            }
+        } else if (config.perceivedBombs.size > 0) {
+            let bombId = config.perceivedBombs.keys().next().value;
+            let targetBomb = config.perceivedBombs.get(bombId);
+            if (targetBomb) {
+                targetPos = targetBomb.mesh.position.clone();
+            } else {
+                config.perceivedBombs.delete(bombId);
+            }
+        } else {
+            // Default: target opponent
+            if (isHelper) {
+                let minDist = Infinity;
+                let nearestEnemy = null;
+                enemies.forEach(e => {
+                    if (!e.isFallen) {
+                        let d = config.mesh.position.distanceTo(e.mesh.position);
+                        if (d < minDist) {
+                            minDist = d;
+                            nearestEnemy = e;
+                        }
+                    }
+                });
+                if (nearestEnemy) targetPos = nearestEnemy.mesh.position.clone();
+            } else {
+                targetPos = player.position.clone();
+            }
+        }
+
+        if (targetPos) {
+            let dir = new THREE.Vector3().subVectors(targetPos, config.mesh.position).normalize();
+            config.vel.addScaledVector(dir, config.accel);
+        }
+
+        // Separation force from other NPCs
+        let others = [...enemyConfigs];
+        if (helperConfig) others.push(helperConfig);
+        others.forEach(other => {
+            if (other !== config && !other.isFallen) {
+                let d = config.mesh.position.distanceTo(other.mesh.position);
+                if (d < 5) {
+                    let repulse = new THREE.Vector3().subVectors(config.mesh.position, other.mesh.position).normalize();
+                    config.vel.addScaledVector(repulse, 0.05);
+                }
+            }
+        });
+
+        // Launch bomb logic (1% chance to launch if opponent is close)
+        if (config.hasBomb && Math.random() < 0.01) {
+            let nearestOpponent = null;
+            let minDist = Infinity;
+
+            if (isHelper) {
+                enemies.forEach(e => {
+                    if (!e.isFallen) {
+                        let d = config.mesh.position.distanceTo(e.pivot.position);
+                        if (d < minDist) {
+                            minDist = d;
+                            nearestOpponent = e.pivot;
+                        }
+                    }
+                });
+            } else {
+                nearestOpponent = player;
+            }
+
+            if (nearestOpponent && config.mesh.position.distanceTo(nearestOpponent.position) < 50) {
+                launchBomb(config);
+            }
+        }
+    }
+
+    function launchBomb(ownerConfig) {
+        if (!ownerConfig.hasBomb) return;
+        ownerConfig.hasBomb = false;
+        if (ownerConfig === playerConfig) {
+            document.getElementById('item-slot').style.display = 'none';
+        }
+
+        // Find target
+        let targetPos = new THREE.Vector3(0, 0, 0);
+        if (ownerConfig === playerConfig) {
+            // Player uses mouse target (this function might need adjustment for player)
+            // But player uses launchBombAtMouse usually.
+            targetPos.copy(player.position).add(new THREE.Vector3(0,0,10).applyQuaternion(player.quaternion));
+        } else {
+            // AI targets opponent
+            if (ownerConfig === helperConfig) {
+                let minDist = Infinity;
+                enemies.forEach(e => {
+                    if (!e.isFallen) {
+                        let d = ownerConfig.mesh.position.distanceTo(e.pivot.position);
+                        if (d < minDist) {
+                            minDist = d;
+                            targetPos.copy(e.pivot.position);
+                        }
+                    }
+                });
+            } else {
+                targetPos.copy(player.position);
+            }
+        }
+
+        launchedBombs.push(new LaunchedBomb(ownerConfig.mesh.position, targetPos));
+        SoundManager.playBombLaunch();
     }
 
     function checkGameOver() {
