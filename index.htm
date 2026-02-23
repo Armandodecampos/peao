@@ -613,7 +613,7 @@
 <div id="start-screen" class="overlay" style="display: none;">
     <div class="header-section">
         <h1 class="glow-text">BATTLE BLADES 3D</h1>
-        <p class="subtitle orbitron">ARENA DE BATALHA</p>
+        <p class="subtitle orbitron">MENU DO JOGADOR</p>
     </div>
 
     <div class="start-container">
@@ -622,6 +622,10 @@
                 <div class="setting-item">
                     <label>COR:</label>
                     <input type="color" id="player-color" value="#2980b9" oninput="updatePreviewColor()" class="color-picker">
+                </div>
+                <div class="setting-item">
+                    <label>MOEDAS:</label>
+                    <span id="total-coins" class="points-val" style="color: #f1c40f;">0</span>
                 </div>
                 <div class="setting-item">
                     <label>PONTOS DISPONÍVEIS:</label>
@@ -673,7 +677,7 @@
             </div>
         </div>
     </div>
-    <div class="footer-controls" style="flex-direction: column; gap: 10px;">
+    <div class="footer-controls" style="flex-direction: column; gap: 10px; align-items: center;">
         <button id="btn-start-battle" class="main-btn orbitron" onclick="startGame()">INICIAR</button>
         <button class="main-btn orbitron" style="background: #e74c3c; color: white; font-size: 1rem; padding: 10px 40px;" onclick="showMainMenu()">SAIR DO JOGO</button>
     </div>
@@ -818,6 +822,7 @@
     let currentShapeIndex = 0;
 
     let currentLevel = 1;
+    let totalCoins = 0;
     let camAngleH = 0;
     let camAngleV = 0.4;
     let camDistPresets = [12, 25, 45];
@@ -1368,6 +1373,8 @@
 
     function updateSkillsUI() {
         document.getElementById('available-points').innerText = availablePoints;
+        const coinsEl = document.getElementById('total-coins');
+        if (coinsEl) coinsEl.innerText = totalCoins;
         document.getElementById('val-forca').innerText = playerSkills.forca;
         document.getElementById('val-velocidade').innerText = playerSkills.velocidade;
         document.getElementById('val-resistencia').innerText = playerSkills.resistencia;
@@ -1416,7 +1423,8 @@
             playerSkills,
             availablePoints,
             playerColor: document.getElementById('player-color').value,
-            currentShapeIndex
+            currentShapeIndex,
+            totalCoins
         };
         localStorage.setItem('battleBladesProgress', JSON.stringify(data));
     }
@@ -1432,6 +1440,7 @@
                 document.getElementById('player-color').value = data.playerColor;
             }
             currentShapeIndex = data.currentShapeIndex || 0;
+            totalCoins = data.totalCoins || 0;
 
             updateSkillsUI();
             updatePreview();
@@ -1850,7 +1859,7 @@
         gameStarted = false;
 
         // Ativa/Desativa o botão CONTINUAR dependendo do progresso
-        const canContinue = currentLevel > 1 || playerSkills.forca > 0 || playerSkills.velocidade > 0 || playerSkills.resistencia > 0 || availablePoints < 3;
+        const canContinue = currentLevel > 1 || playerSkills.forca > 0 || playerSkills.velocidade > 0 || playerSkills.resistencia > 0 || availablePoints < 3 || totalCoins > 0;
         document.getElementById('btn-continue').style.opacity = canContinue ? "1" : "0.5";
         document.getElementById('btn-continue').disabled = !canContinue;
     }
@@ -1859,6 +1868,7 @@
         currentLevel = 1;
         playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
         availablePoints = 3;
+        totalCoins = 0;
         updateSkillsUI();
         saveGame();
         continueGame();
@@ -2211,7 +2221,13 @@
                 obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, targetRotX, 0.15);
                 obj.rotation.z = THREE.MathUtils.lerp(obj.rotation.z, targetRotZ, 0.15);
 
-                if (c.stamina <= 0 || c.wobble > 1.2) c.isFallen = true;
+                if (c.stamina <= 0 || c.wobble > 1.2) {
+                    c.isFallen = true;
+                    if (obj !== player) {
+                        totalCoins++;
+                        saveGame();
+                    }
+                }
             } else {
                 // Queda Dinâmica
                 c.rotationSpeed *= 0.96; // Desaceleração rápida da rotação
