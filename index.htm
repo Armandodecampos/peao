@@ -577,6 +577,7 @@
             gap: 40px;
             border-radius: 50px;
             transition: all 0.3s;
+            touch-action: manipulation;
         }
         #top-stats-bar:hover {
             background: rgba(255,255,255,0.15);
@@ -586,6 +587,9 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            pointer-events: auto;
+            touch-action: manipulation;
+            cursor: pointer;
         }
         .stat-item label {
             font-size: 0.65rem;
@@ -602,7 +606,7 @@
             transform: scale(1.1);
         }
         #skills-modal {
-            z-index: 150;
+            z-index: 1000;
             background: radial-gradient(circle, rgba(10,10,10,0.9) 0%, rgba(0,0,0,0.95) 100%);
             backdrop-filter: blur(15px);
             -webkit-backdrop-filter: blur(15px);
@@ -772,7 +776,7 @@
     </div>
 </div>
 
-<div id="shop-modal" class="overlay" style="display: none; justify-content: center; background: #000;">
+<div id="shop-modal" class="overlay" style="display: none; justify-content: center; background: #000; z-index: 1000;">
     <div class="header-section">
         <h1 class="glow-text">LOJA</h1>
         <div style="margin-top: 10px;">
@@ -1160,6 +1164,22 @@
 
         stopSpin() {
             if (this.spinGain) this.spinGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+        },
+
+        playBombLaunch() {
+            if (!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, t);
+            osc.frequency.exponentialRampToValueAtTime(100, t + 0.3);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+            osc.connect(gain);
+            gain.connect(this.mainGain);
+            osc.start(t);
+            osc.stop(t + 0.3);
         }
     };
 
@@ -1314,6 +1334,7 @@
         const modal = document.getElementById('skills-modal');
         if (!modal) return;
         modal.style.display = show ? 'flex' : 'none';
+        document.getElementById('top-stats-bar').style.visibility = show ? 'hidden' : 'visible';
         if (show) updateSkillsUI();
         try { SoundManager.playCollect(); } catch(e){}
     }
@@ -1322,6 +1343,7 @@
         const modal = document.getElementById('shop-modal');
         if (!modal) return;
         modal.style.display = show ? 'flex' : 'none';
+        document.getElementById('top-stats-bar').style.visibility = show ? 'hidden' : 'visible';
         if (show) {
             document.getElementById('shop-coins').innerText = totalCoins;
             const btn = document.getElementById('btn-buy-helper');
@@ -2090,13 +2112,16 @@
     }
 
     function startNewGame() {
-        currentLevel = 1;
-        playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
-        availablePoints = 3;
-        totalCoins = 0;
-        updateSkillsUI();
-        saveGame();
-        continueGame();
+        if (confirm("Tem certeza que deseja iniciar um novo jogo? Todos os seus pontos, moedas e itens serão apagados!")) {
+            currentLevel = 1;
+            playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
+            availablePoints = 3;
+            totalCoins = 0;
+            hasHelper = false;
+            updateSkillsUI();
+            saveGame();
+            continueGame();
+        }
     }
 
     function continueGame() {
@@ -2109,6 +2134,8 @@
         isPaused = false;
         document.getElementById('settings-menu').style.display = 'none';
         document.getElementById('skills-modal').style.display = 'none';
+        document.getElementById('shop-modal').style.display = 'none';
+        document.getElementById('top-stats-bar').style.visibility = 'visible';
         document.getElementById('msg').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
@@ -2552,12 +2579,12 @@
             if (isHelper) {
                 let minDist = Infinity;
                 let nearestEnemy = null;
-                enemies.forEach(e => {
-                    if (!e.isFallen) {
-                        let d = config.mesh.position.distanceTo(e.mesh.position);
+                enemyConfigs.forEach(ec => {
+                    if (!ec.isFallen) {
+                        let d = config.mesh.position.distanceTo(ec.mesh.position);
                         if (d < minDist) {
                             minDist = d;
-                            nearestEnemy = e;
+                            nearestEnemy = ec;
                         }
                     }
                 });
@@ -2591,12 +2618,12 @@
             let minDist = Infinity;
 
             if (isHelper) {
-                enemies.forEach(e => {
-                    if (!e.isFallen) {
-                        let d = config.mesh.position.distanceTo(e.pivot.position);
+                enemyConfigs.forEach(ec => {
+                    if (!ec.isFallen) {
+                        let d = config.mesh.position.distanceTo(ec.mesh.position);
                         if (d < minDist) {
                             minDist = d;
-                            nearestOpponent = e.pivot;
+                            nearestOpponent = ec.mesh;
                         }
                     }
                 });
@@ -2627,12 +2654,12 @@
             // AI targets opponent
             if (ownerConfig === helperConfig) {
                 let minDist = Infinity;
-                enemies.forEach(e => {
-                    if (!e.isFallen) {
-                        let d = ownerConfig.mesh.position.distanceTo(e.pivot.position);
+            enemyConfigs.forEach(ec => {
+                if (!ec.isFallen) {
+                    let d = ownerConfig.mesh.position.distanceTo(ec.mesh.position);
                         if (d < minDist) {
                             minDist = d;
-                            targetPos.copy(e.pivot.position);
+                        targetPos.copy(ec.mesh.position);
                         }
                     }
                 });
