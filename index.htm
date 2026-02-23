@@ -561,6 +561,54 @@
                 margin-top: 10px;
              }
         }
+
+        /* New Styles for Player Menu V2 */
+        #top-stats-bar {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: auto;
+            min-width: 250px;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 40px;
+            z-index: 120;
+            pointer-events: auto;
+            cursor: pointer;
+            gap: 40px;
+            border-radius: 50px;
+            transition: all 0.3s;
+        }
+        #top-stats-bar:hover {
+            background: rgba(255,255,255,0.15);
+            transform: translateX(-50%) scale(1.05);
+        }
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .stat-item label {
+            font-size: 0.65rem;
+            font-weight: bold;
+            color: #aaa;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        .stat-item[onclick] {
+            transition: all 0.3s;
+        }
+        .stat-item[onclick]:hover {
+            filter: brightness(1.2);
+            transform: scale(1.1);
+        }
+        #skills-modal {
+            z-index: 150;
+            background: radial-gradient(circle, rgba(10,10,10,0.9) 0%, rgba(0,0,0,0.95) 100%);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+        }
     </style>
 </head>
 <body>
@@ -611,31 +659,26 @@
 </div>
 
 <div id="start-screen" class="overlay" style="display: none;">
-    <div class="header-section">
-        <h1 class="glow-text">BATTLE BLADES 3D</h1>
-        <p class="subtitle orbitron">MENU DO JOGADOR</p>
+    <div id="top-stats-bar" class="glass">
+        <div class="stat-item">
+            <label>MOEDAS</label>
+            <span id="total-coins" class="points-val" style="color: #f1c40f;">0</span>
+        </div>
+        <div class="stat-item" onclick="toggleSkillsModal(true)" style="cursor: pointer;">
+            <label>PONTOS</label>
+            <span id="available-points" class="points-val">3</span>
+        </div>
     </div>
 
     <div class="start-container">
         <div class="main-panel glass">
-            <div class="settings-row">
-                <div class="setting-item">
-                    <label>COR:</label>
-                    <input type="color" id="player-color" value="#2980b9" oninput="updatePreviewColor()" class="color-picker">
-                </div>
-                <div class="setting-item">
-                    <label>MOEDAS:</label>
-                    <span id="total-coins" class="points-val" style="color: #f1c40f;">0</span>
-                </div>
-                <div class="setting-item">
-                    <label>PONTOS DISPONÍVEIS:</label>
-                    <span id="available-points" class="points-val">3</span>
-                </div>
-            </div>
-
             <div class="config-grid">
                 <div class="config-section">
                     <label class="section-label">ESCOLHA SEU PEÃO:</label>
+                    <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px; pointer-events: auto;">
+                        <label style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px;">COR:</label>
+                        <input type="color" id="player-color" value="#2980b9" oninput="updatePreviewColor()" class="color-picker" style="width: 40px; height: 30px;">
+                    </div>
                     <div class="carousel">
                         <button class="nav-btn" onclick="changeShape(-1)">&#10094;</button>
                         <div id="preview-container"></div>
@@ -644,42 +687,55 @@
                     <div id="shape-name" class="shape-title">PADRÃO</div>
                 </div>
 
-                <div class="config-section">
-                    <label class="section-label">HABILIDADES:</label>
-
-                    <div class="skill-row">
-                        <span class="skill-name">FORÇA</span>
-                        <div class="skill-controls">
-                            <button id="btn-sub-forca" class="skill-btn" onclick="modifySkill('forca', -1)">-</button>
-                            <span id="val-forca" class="skill-val">0</span>
-                            <button id="btn-add-forca" class="skill-btn" onclick="modifySkill('forca', 1)">+</button>
-                        </div>
-                    </div>
-
-                    <div class="skill-row">
-                        <span class="skill-name">VELOCIDADE</span>
-                        <div class="skill-controls">
-                            <button id="btn-sub-velocidade" class="skill-btn" onclick="modifySkill('velocidade', -1)">-</button>
-                            <span id="val-velocidade" class="skill-val">0</span>
-                            <button id="btn-add-velocidade" class="skill-btn" onclick="modifySkill('velocidade', 1)">+</button>
-                        </div>
-                    </div>
-
-                    <div class="skill-row">
-                        <span class="skill-name">RESISTÊNCIA</span>
-                        <div class="skill-controls">
-                            <button id="btn-sub-resistencia" class="skill-btn" onclick="modifySkill('resistencia', -1)">-</button>
-                            <span id="val-resistencia" class="skill-val">0</span>
-                            <button id="btn-add-resistencia" class="skill-btn" onclick="modifySkill('resistencia', 1)">+</button>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
     <div class="footer-controls" style="flex-direction: column; gap: 10px; align-items: center;">
         <button id="btn-start-battle" class="main-btn orbitron" onclick="startGame()">INICIAR</button>
         <button class="main-btn orbitron" style="background: #e74c3c; color: white; font-size: 1rem; padding: 10px 40px;" onclick="showMainMenu()">SAIR DO JOGO</button>
+    </div>
+</div>
+
+<div id="skills-modal" class="overlay" style="display: none; justify-content: center;">
+    <div class="header-section">
+        <h1 class="glow-text">HABILIDADES</h1>
+        <div style="margin-top: 10px;">
+            <span style="font-size: 0.9rem; color: #aaa; letter-spacing: 2px;">PONTOS DISPONÍVEIS:</span>
+            <span id="available-points-modal" class="points-val">3</span>
+        </div>
+    </div>
+    <div class="start-container" style="justify-content: center;">
+        <div class="main-panel glass" style="max-width: 500px; padding: 30px; display: flex; flex-direction: column; align-items: center; gap: 20px;">
+            <div id="modal-skills-container" style="width: 100%; display: flex; flex-direction: column; gap: 15px; align-items: center;">
+                <div class="skill-row">
+                    <span class="skill-name">FORÇA</span>
+                    <div class="skill-controls">
+                        <button id="btn-sub-forca" class="skill-btn" onclick="modifySkill('forca', -1)">-</button>
+                        <span id="val-forca" class="skill-val">0</span>
+                        <button id="btn-add-forca" class="skill-btn" onclick="modifySkill('forca', 1)">+</button>
+                    </div>
+                </div>
+
+                <div class="skill-row">
+                    <span class="skill-name">VELOCIDADE</span>
+                    <div class="skill-controls">
+                        <button id="btn-sub-velocidade" class="skill-btn" onclick="modifySkill('velocidade', -1)">-</button>
+                        <span id="val-velocidade" class="skill-val">0</span>
+                        <button id="btn-add-velocidade" class="skill-btn" onclick="modifySkill('velocidade', 1)">+</button>
+                    </div>
+                </div>
+
+                <div class="skill-row">
+                    <span class="skill-name">RESISTÊNCIA</span>
+                    <div class="skill-controls">
+                        <button id="btn-sub-resistencia" class="skill-btn" onclick="modifySkill('resistencia', -1)">-</button>
+                        <span id="val-resistencia" class="skill-val">0</span>
+                        <button id="btn-add-resistencia" class="skill-btn" onclick="modifySkill('resistencia', 1)">+</button>
+                    </div>
+                </div>
+            </div>
+            <button class="main-btn orbitron" style="margin-top: 20px; font-size: 1.1rem; padding: 12px 40px;" onclick="toggleSkillsModal(false)">VOLTAR</button>
+        </div>
     </div>
 </div>
 
@@ -1187,6 +1243,14 @@
         }
     }
 
+    function toggleSkillsModal(show) {
+        const modal = document.getElementById('skills-modal');
+        if (!modal) return;
+        modal.style.display = show ? 'flex' : 'none';
+        if (show) updateSkillsUI();
+        try { SoundManager.playCollect(); } catch(e){}
+    }
+
     function toggleSettings() {
         if (!gameStarted || gameOver) return;
         isPaused = !isPaused;
@@ -1373,6 +1437,9 @@
 
     function updateSkillsUI() {
         document.getElementById('available-points').innerText = availablePoints;
+        const modalPoints = document.getElementById('available-points-modal');
+        if (modalPoints) modalPoints.innerText = availablePoints;
+
         const coinsEl = document.getElementById('total-coins');
         if (coinsEl) coinsEl.innerText = totalCoins;
         document.getElementById('val-forca').innerText = playerSkills.forca;
@@ -1692,6 +1759,7 @@
 
     function startGame() {
         saveGame();
+        document.getElementById('skills-modal').style.display = 'none';
         // Agora startGame apenas inicia o jogo no nível atual definido.
         // O reset para nível 1 acontece apenas em resetGame().
         document.getElementById('level-ui').innerText = `NÍVEL ${currentLevel}`;
@@ -1848,6 +1916,7 @@
     function showMainMenu() {
         isPaused = false;
         document.getElementById('settings-menu').style.display = 'none';
+        document.getElementById('skills-modal').style.display = 'none';
         document.getElementById('main-menu').style.display = 'flex';
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('msg').style.display = 'none';
@@ -1883,6 +1952,7 @@
     function backToOptions() {
         isPaused = false;
         document.getElementById('settings-menu').style.display = 'none';
+        document.getElementById('skills-modal').style.display = 'none';
         document.getElementById('msg').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
@@ -1906,6 +1976,7 @@
         saveGame();
         isPaused = false;
         document.getElementById('settings-menu').style.display = 'none';
+        document.getElementById('skills-modal').style.display = 'flex';
         document.getElementById('msg').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
