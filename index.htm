@@ -578,6 +578,22 @@
     🎥
 </div>
 
+<div id="settings-btn" class="camera-btn" style="right: 20px; left: auto;" onclick="toggleSettings()" title="Configurações">
+    ⚙️
+</div>
+
+<div id="settings-menu" class="overlay" style="display: none; justify-content: center;">
+    <div class="header-section">
+        <h1 class="glow-text">PAUSA</h1>
+    </div>
+    <div class="start-container" style="justify-content: center;">
+        <div class="main-panel glass" style="max-width: 400px; padding: 40px; gap: 20px; align-items: center; justify-content: center;">
+            <button class="main-btn orbitron" style="width: 100%;" onclick="toggleSettings()">RETOMAR</button>
+            <button class="main-btn orbitron" style="width: 100%; background: #e67e22; color: white;" onclick="backToOptions()">VOLTAR</button>
+        </div>
+    </div>
+</div>
+
 <div id="main-menu" class="overlay" style="display: none;">
     <div class="header-section">
         <h1 class="glow-text">BATTLE BLADES 3D</h1>
@@ -817,6 +833,7 @@
     const mouse = new THREE.Vector2();
     let gameOver = false;
     let gameStarted = false;
+    let isPaused = false;
     let raceActive = false;
     let resultPending = false;
     let sparks = [];
@@ -1163,6 +1180,22 @@
             scene.remove(this.mesh);
             this.active = false;
         }
+    }
+
+    function toggleSettings() {
+        if (!gameStarted || gameOver) return;
+        isPaused = !isPaused;
+        document.getElementById('settings-menu').style.display = isPaused ? 'flex' : 'none';
+
+        // Hide/Show other game UI
+        const display = isPaused ? 'none' : 'flex';
+        const displayUI = isPaused ? 'none' : 'block';
+        document.getElementById('camera-toggle').style.display = display;
+        document.getElementById('settings-btn').style.display = display;
+        document.getElementById('mobile-controls').style.display = display;
+        document.getElementById('ui').style.display = displayUI;
+
+        try { SoundManager.playCollect(); } catch(e){}
     }
 
     function toggleCamera() {
@@ -1728,6 +1761,7 @@
         document.getElementById('ui').style.display = 'block';
         document.getElementById('mobile-controls').style.display = 'flex';
         document.getElementById('camera-toggle').style.display = 'flex';
+        document.getElementById('settings-btn').style.display = 'flex';
         gameStarted = true;
 
         startCountdown();
@@ -1803,12 +1837,15 @@
     }
 
     function showMainMenu() {
+        isPaused = false;
+        document.getElementById('settings-menu').style.display = 'none';
         document.getElementById('main-menu').style.display = 'flex';
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('msg').style.display = 'none';
         document.getElementById('level-ui').style.display = 'none';
         document.getElementById('mobile-controls').style.display = 'none';
         document.getElementById('camera-toggle').style.display = 'none';
+        document.getElementById('settings-btn').style.display = 'none';
         document.getElementById('ui').style.display = 'none';
         gameStarted = false;
 
@@ -1834,11 +1871,14 @@
     }
 
     function backToOptions() {
+        isPaused = false;
+        document.getElementById('settings-menu').style.display = 'none';
         document.getElementById('msg').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
         document.getElementById('mobile-controls').style.display = 'none';
         document.getElementById('camera-toggle').style.display = 'none';
+        document.getElementById('settings-btn').style.display = 'none';
         document.getElementById('ui').style.display = 'none';
         gameStarted = false;
         updateSkillsUI();
@@ -1854,11 +1894,14 @@
         availablePoints++;
         updateSkillsUI();
         saveGame();
+        isPaused = false;
+        document.getElementById('settings-menu').style.display = 'none';
         document.getElementById('msg').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
         document.getElementById('mobile-controls').style.display = 'none';
         document.getElementById('camera-toggle').style.display = 'none';
+        document.getElementById('settings-btn').style.display = 'none';
         document.getElementById('ui').style.display = 'none';
         gameStarted = false;
     }
@@ -1950,6 +1993,11 @@
 
     function animate() {
         requestAnimationFrame(animate);
+
+        if (isPaused) {
+            renderer.render(scene, camera);
+            return;
+        }
 
         if (cameraJoystickInput.x !== 0 || cameraJoystickInput.y !== 0) {
             camAngleH -= cameraJoystickInput.x * 0.05;
@@ -2293,6 +2341,7 @@
                 st.innerHTML += `<br><button class="main-btn" style="margin-top: 10px; font-size: 1rem; padding: 10px 30px; background: #666; color: #fff;" onclick="backToOptions()">VOLTAR</button>`;
 
                 document.getElementById('camera-toggle').style.display = 'none';
+                document.getElementById('settings-btn').style.display = 'none';
                 document.getElementById('mobile-controls').style.display = 'none';
                 document.getElementById('ui').style.display = 'none';
 
