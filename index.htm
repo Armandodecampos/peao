@@ -564,10 +564,8 @@
 
         /* New Styles for Player Menu V2 */
         #top-stats-bar {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            position: relative;
+            margin-top: 20px;
             width: auto;
             min-width: 250px;
             display: flex;
@@ -582,7 +580,7 @@
         }
         #top-stats-bar:hover {
             background: rgba(255,255,255,0.15);
-            transform: translateX(-50%) scale(1.05);
+            transform: scale(1.05);
         }
         .stat-item {
             display: flex;
@@ -652,9 +650,6 @@
             <button class="main-btn orbitron" style="width: 100%; max-width: 400px;" onclick="startNewGame()">NOVO JOGO</button>
             <button id="btn-continue" class="main-btn orbitron" style="width: 100%; max-width: 400px; background: #666; color: #fff;" onclick="continueGame()">CONTINUAR</button>
         </div>
-    </div>
-    <div class="footer-controls" style="opacity: 0.5; pointer-events: none;">
-        <p style="font-size: 0.8rem; letter-spacing: 2px;">V 2.0</p>
     </div>
 </div>
 
