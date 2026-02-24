@@ -944,10 +944,10 @@
 
     let currentLevel = 1;
     let totalCoins = 0;
-    let hasHelper = false;
-    let helper = null;
-    let helperConfig = null;
-    let helperUI = null;
+    let helperCount = 0;
+    let helpers = [];
+    let helperConfigs = [];
+    let helperUIs = [];
     let camAngleH = 0;
     let camAngleV = 0.4;
     let camDistPresets = [12, 25, 45];
@@ -1281,7 +1281,7 @@
         const explosionForce = 1.8;
 
         const allBlades = [{cfg: playerConfig, mesh: player}];
-        if (helper) allBlades.push({cfg: helperConfig, mesh: helper});
+        helperConfigs.forEach(hc => allBlades.push({cfg: hc, mesh: hc.mesh}));
         allBlades.push(...enemies.map((e, i) => ({cfg: enemyConfigs[i], mesh: e.pivot})));
 
         allBlades.forEach(b => {
@@ -1347,23 +1347,17 @@
         if (show) {
             document.getElementById('shop-coins').innerText = totalCoins;
             const btn = document.getElementById('btn-buy-helper');
-            if (hasHelper) {
-                btn.innerText = "JÁ POSSUI";
-                btn.disabled = true;
-                btn.style.opacity = "0.5";
-            } else {
-                btn.innerText = "COMPRAR";
-                btn.disabled = totalCoins < 5;
-                btn.style.opacity = totalCoins < 5 ? "0.5" : "1";
-            }
+            btn.innerText = `COMPRAR (${helperCount})`;
+            btn.disabled = totalCoins < 5;
+            btn.style.opacity = totalCoins < 5 ? "0.5" : "1";
         }
         try { SoundManager.playCollect(); } catch(e){}
     }
 
     function buyHelper() {
-        if (totalCoins >= 5 && !hasHelper) {
+        if (totalCoins >= 5) {
             totalCoins -= 5;
-            hasHelper = true;
+            helperCount++;
             updateSkillsUI();
             toggleShopModal(true);
             saveGame();
@@ -1612,7 +1606,7 @@
             playerColor: document.getElementById('player-color').value,
             currentShapeIndex,
             totalCoins,
-            hasHelper
+            helperCount
         };
         localStorage.setItem('battleBladesProgress', JSON.stringify(data));
     }
@@ -1629,7 +1623,12 @@
             }
             currentShapeIndex = data.currentShapeIndex || 0;
             totalCoins = data.totalCoins || 0;
-            hasHelper = data.hasHelper || false;
+
+            if (data.helperCount !== undefined) {
+                helperCount = data.helperCount;
+            } else if (data.hasHelper !== undefined) {
+                helperCount = data.hasHelper ? 1 : 0;
+            }
 
             updateSkillsUI();
             updatePreview();
@@ -1895,13 +1894,11 @@
         if(player) {
             scene.remove(player);
         }
-        if (helper) {
-            scene.remove(helper);
-            if (helperUI) helperUI.remove();
-            helper = null;
-            helperConfig = null;
-            helperUI = null;
-        }
+        helpers.forEach(h => scene.remove(h));
+        helperUIs.forEach(ui => ui.remove());
+        helpers = [];
+        helperConfigs = [];
+        helperUIs = [];
         enemies.forEach(e => {
             scene.remove(e.pivot);
             if (e.ui) e.ui.remove();
@@ -1933,15 +1930,18 @@
         // Aplica Habilidades (Impacto reduzido para 5% por ponto)
         playerConfig.accel = pObj.config.accel * (1 + playerSkills.velocidade * 0.05);
 
-        if (hasHelper) {
-            const hObj = createBlade(playerConfig.color, shapeKey, false, "AJUDANTE");
-            helper = hObj.pivot;
-            helperUI = hObj.ui;
-            helperUI.id = 'helper-ui';
-            scene.add(helper);
-            helperConfig = {
-                mesh: helper,
-                ui: helperUI,
+        for (let i = 0; i < helperCount; i++) {
+            const hObj = createBlade(playerConfig.color, shapeKey, false, `AJUDANTE ${i+1}`);
+            const hMesh = hObj.pivot;
+            const hUI = hObj.ui;
+            hUI.id = `helper-ui-${i}`;
+            scene.add(hMesh);
+
+            helpers.push(hMesh);
+            helperUIs.push(hUI);
+            helperConfigs.push({
+                mesh: hMesh,
+                ui: hUI,
                 vel: new THREE.Vector3(0, 0, 0),
                 stamina: 100,
                 rotationSpeed: 1.5,
@@ -1956,7 +1956,7 @@
                 color: playerConfig.color,
                 perceivedHearts: new Map(),
                 perceivedBombs: new Map()
-            };
+            });
         }
 
         const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60, 0xe67e22, 0x16a085, 0x2980b9];
@@ -2041,19 +2041,20 @@
         playerConfig.wobble = 0;
         playerConfig.hitWobble = 0;
 
-        if (helper) {
-            helper.position.set(spawnDist, 0, spawnDist);
-            helper.rotation.set(0,0,0);
-            if (helper.children[0]) helper.children[0].rotation.set(0,0,0);
-            helperConfig.vel.set(0,0,0);
-            helperConfig.stamina = 100;
-            helperConfig.isFallen = false;
-            helperConfig.hasBomb = false;
-            helperConfig.wobble = 0;
-            helperConfig.hitWobble = 0;
-            helperConfig.perceivedHearts.clear();
-            helperConfig.perceivedBombs.clear();
-        }
+        helperConfigs.forEach((hc, i) => {
+            const angle = ((i + 1) / (helperConfigs.length + 1)) * Math.PI;
+            hc.mesh.position.set(Math.cos(angle) * spawnDist, 0, Math.sin(angle) * spawnDist);
+            hc.mesh.rotation.set(0,0,0);
+            if (hc.mesh.children[0]) hc.mesh.children[0].rotation.set(0,0,0);
+            hc.vel.set(0,0,0);
+            hc.stamina = 100;
+            hc.isFallen = false;
+            hc.hasBomb = false;
+            hc.wobble = 0;
+            hc.hitWobble = 0;
+            hc.perceivedHearts.clear();
+            hc.perceivedBombs.clear();
+        });
 
         enemies.forEach((e, i) => {
             const angle = ((i + 1) / (enemies.length + 1)) * Math.PI * 2;
@@ -2117,7 +2118,7 @@
             playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
             availablePoints = 3;
             totalCoins = 0;
-            hasHelper = false;
+            helperCount = 0;
             updateSkillsUI();
             saveGame();
             continueGame();
@@ -2172,7 +2173,7 @@
 
     function checkCollision() {
         const allBlades = [{mesh: player, cfg: playerConfig}];
-        if (helper) allBlades.push({mesh: helper, cfg: helperConfig});
+        helperConfigs.forEach(hc => allBlades.push({mesh: hc.mesh, cfg: hc}));
         allBlades.push(...enemies.map((e, i) => ({mesh: e.pivot, cfg: enemyConfigs[i]})));
 
         // Colisões com Bombas
@@ -2218,7 +2219,9 @@
                 if (b1.cfg.isFallen || b2.cfg.isFallen) continue;
 
                 // Sem fogo amigo entre jogador e ajudante
-                if ((b1.mesh === player && b2.mesh === helper) || (b1.mesh === helper && b2.mesh === player)) continue;
+                const isB1Helper = helpers.includes(b1.mesh);
+                const isB2Helper = helpers.includes(b2.mesh);
+                if ((b1.mesh === player && isB2Helper) || (isB1Helper && b2.mesh === player) || (isB1Helper && isB2Helper)) continue;
 
                 const dist = b1.mesh.position.distanceTo(b2.mesh.position);
                 const combinedRadius = (b1.cfg.collisionRadius || 1.65) + (b2.cfg.collisionRadius || 1.65);
@@ -2280,7 +2283,7 @@
         hearts = hearts.filter(h => {
             const active = h.update();
             if (!active) {
-                if (helperConfig) helperConfig.perceivedHearts.delete(h.mesh.uuid);
+                helperConfigs.forEach(hc => hc.perceivedHearts.delete(h.mesh.uuid));
                 enemyConfigs.forEach(c => c.perceivedHearts.delete(h.mesh.uuid));
             }
             return active;
@@ -2289,7 +2292,7 @@
         bombs = bombs.filter(b => {
             const active = b.update();
             if (!active) {
-                if (helperConfig) helperConfig.perceivedBombs.delete(b.mesh.uuid);
+                helperConfigs.forEach(hc => hc.perceivedBombs.delete(b.mesh.uuid));
                 enemyConfigs.forEach(c => c.perceivedBombs.delete(b.mesh.uuid));
             }
             return active;
@@ -2344,7 +2347,7 @@
         const allBlades = [
             {obj: player, c: playerConfig, ui: document.getElementById('player-ui')}
         ];
-        if (helper) allBlades.push({obj: helper, c: helperConfig, ui: helperUI});
+        helperConfigs.forEach(hc => allBlades.push({obj: hc.mesh, c: hc, ui: hc.ui}));
         allBlades.push(...enemies.map((e, i) => ({obj: e.pivot, c: enemyConfigs[i], ui: e.ui})));
 
         allBlades.forEach(({obj, c}) => {
@@ -2464,7 +2467,7 @@
 
         // Update AI
         enemyConfigs.forEach(c => updateAI(c, false));
-        if (helperConfig) updateAI(helperConfig, true);
+        helperConfigs.forEach(hc => updateAI(hc, true));
 
         // Atualizar Stamina Player e UI
         const pStamina = Math.max(0, playerConfig.stamina);
@@ -2493,7 +2496,8 @@
                 if (fill) {
                     const stam = Math.max(0, item.c.stamina);
                     fill.style.width = stam + '%';
-                    fill.style.background = stam < 30 ? '#ff3300' : (item.ui.id === 'player-ui' || item.ui.id === 'helper-ui' ? '#00d2ff' : '#ff416c');
+                    const isFriendly = item.ui.id === 'player-ui' || item.ui.id.startsWith('helper-ui');
+                    fill.style.background = stam < 30 ? '#ff3300' : (isFriendly ? '#00d2ff' : '#ff416c');
                 }
             }
         });
@@ -2600,8 +2604,7 @@
         }
 
         // Separation force from other NPCs
-        let others = [...enemyConfigs];
-        if (helperConfig) others.push(helperConfig);
+        let others = [...enemyConfigs, ...helperConfigs];
         others.forEach(other => {
             if (other !== config && !other.isFallen) {
                 let d = config.mesh.position.distanceTo(other.mesh.position);
@@ -2632,12 +2635,12 @@
             }
 
             if (nearestOpponent && config.mesh.position.distanceTo(nearestOpponent.position) < 50) {
-                launchBomb(config);
+                launchBomb(config, isHelper);
             }
         }
     }
 
-    function launchBomb(ownerConfig) {
+    function launchBomb(ownerConfig, isHelper) {
         if (!ownerConfig.hasBomb) return;
         ownerConfig.hasBomb = false;
         if (ownerConfig === playerConfig) {
@@ -2647,19 +2650,17 @@
         // Find target
         let targetPos = new THREE.Vector3(0, 0, 0);
         if (ownerConfig === playerConfig) {
-            // Player uses mouse target (this function might need adjustment for player)
-            // But player uses launchBombAtMouse usually.
             targetPos.copy(player.position).add(new THREE.Vector3(0,0,10).applyQuaternion(player.quaternion));
         } else {
             // AI targets opponent
-            if (ownerConfig === helperConfig) {
+            if (isHelper) {
                 let minDist = Infinity;
-            enemyConfigs.forEach(ec => {
-                if (!ec.isFallen) {
-                    let d = ownerConfig.mesh.position.distanceTo(ec.mesh.position);
+                enemyConfigs.forEach(ec => {
+                    if (!ec.isFallen) {
+                        let d = ownerConfig.mesh.position.distanceTo(ec.mesh.position);
                         if (d < minDist) {
                             minDist = d;
-                        targetPos.copy(ec.mesh.position);
+                            targetPos.copy(ec.mesh.position);
                         }
                     }
                 });
@@ -2699,7 +2700,7 @@
                     SoundManager.playWin();
                 } else {
                     SoundManager.playLoss();
-                    hasHelper = false;
+                    helperCount = 0;
                     saveGame();
                 }
 
