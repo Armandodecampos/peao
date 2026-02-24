@@ -1218,6 +1218,7 @@
             const z = Math.sin(angle) * dist;
             const y = getGroundHeight(x, z) + 1.0;
             this.mesh.position.set(x, y, z);
+            this.baseY = y;
             this.mesh.rotation.x = Math.PI;
             this.mesh.castShadow = true;
             scene.add(this.mesh);
@@ -1225,7 +1226,7 @@
         }
         update() {
             this.mesh.rotation.y += 0.03;
-            this.mesh.position.y = 1.5 + Math.sin(Date.now() * 0.003) * 0.2;
+            this.mesh.position.y = this.baseY + Math.sin(Date.now() * 0.003) * 0.2;
             return this.active;
         }
         collect() {
@@ -1325,12 +1326,13 @@
             const z = Math.sin(angle) * dist;
             const y = getGroundHeight(x, z) + 0.8;
             this.mesh.position.set(x, y, z);
+            this.baseY = y;
             scene.add(this.mesh);
             this.active = true;
         }
         update() {
             this.mesh.rotation.y += 0.05;
-            this.mesh.position.y = 1.2 + Math.sin(Date.now() * 0.005) * 0.15;
+            this.mesh.position.y = this.baseY + Math.sin(Date.now() * 0.005) * 0.15;
             return this.active;
         }
         collect() {
@@ -2443,20 +2445,26 @@
             let trackHeight = getGroundHeight(obj.position.x, obj.position.z);
 
             // Bloqueio de subida automática: se a diferença de altura for muito grande, trata como parede
-            if (trackHeight > obj.position.y + 0.15) {
+            if (trackHeight > obj.position.y + 0.08) {
                 // Desfazer movimento lateral
                 obj.position.x -= c.vel.x;
                 obj.position.z -= c.vel.z;
 
                 const radialDir = new THREE.Vector3(obj.position.x, 0, obj.position.z).normalize();
-                obj.position.addScaledVector(radialDir, -0.2); // Afastar da parede
+                obj.position.addScaledVector(radialDir, -0.5); // Empurrão firme para fora
 
-                c.vel.x *= -0.5; // Rebate velocidade
-                c.vel.z *= -0.5;
+                c.vel.x *= -0.8; // Rebate velocidade
+                c.vel.z *= -0.8;
                 c.stamina -= 5; // Sofre dano ao bater na rampa/plataforma
                 if (obj === player) cameraShake = 0.2;
-                // Recalcula altura no ponto seguro
-                trackHeight = getGroundHeight(obj.position.x, obj.position.z);
+
+                // Recalcula altura no ponto seguro e garante que não houve "salto"
+                const safeHeight = getGroundHeight(obj.position.x, obj.position.z);
+                if (safeHeight > obj.position.y + 0.08) {
+                    trackHeight = (obj.lastGroundLevel !== undefined) ? obj.lastGroundLevel : obj.position.y;
+                } else {
+                    trackHeight = safeHeight;
+                }
                 try { SoundManager.playHit(); } catch(e){}
             }
 
