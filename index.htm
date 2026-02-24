@@ -977,7 +977,7 @@
     let cameraZoom = 1.0;
     const CAMERA_OFFSET = new THREE.Vector3(0, 40, 35);
 
-    const ARENA_RADIUS = 140;
+    const ARENA_RADIUS = 70;
 
     const heartShape = new THREE.Shape();
     heartShape.moveTo(0, 0);
@@ -1211,9 +1211,13 @@
     class Heart {
         constructor() {
             this.mesh = new THREE.Mesh(heartGeo, heartMat);
-            const angle = Math.random() * Math.PI * 2;
-            const dist = Math.random() * (ARENA_RADIUS * 0.8);
-            this.mesh.position.set(Math.cos(angle) * dist, 1.5, Math.sin(angle) * dist);
+            const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
+            const angle = centers[Math.floor(Math.random() * centers.length)];
+            const dist = 52 + Math.random() * 16;
+            const x = Math.cos(angle) * dist;
+            const z = Math.sin(angle) * dist;
+            const y = getGroundHeight(x, z) + 1.0;
+            this.mesh.position.set(x, y, z);
             this.mesh.rotation.x = Math.PI;
             this.mesh.castShadow = true;
             scene.add(this.mesh);
@@ -1314,9 +1318,13 @@
             fuse.castShadow = true;
             this.mesh.add(fuse);
 
-            const angle = Math.random() * Math.PI * 2;
-            const dist = Math.random() * (ARENA_RADIUS * 0.8);
-            this.mesh.position.set(Math.cos(angle) * dist, 1.2, Math.sin(angle) * dist);
+            const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
+            const angle = centers[Math.floor(Math.random() * centers.length)];
+            const dist = 52 + Math.random() * 16;
+            const x = Math.cos(angle) * dist;
+            const z = Math.sin(angle) * dist;
+            const y = getGroundHeight(x, z) + 0.8;
+            this.mesh.position.set(x, y, z);
             scene.add(this.mesh);
             this.active = true;
         }
@@ -1698,9 +1706,9 @@
         // Arena de Batalha (Cimento Queimado)
         const arenaTexture = textureLoader.load('https://dl.dropbox.com/scl/fi/gh66sugd65o7bppoza6iq/textura-de-cimento-queimado.png?rlkey=mgc0pcnhhd8mjbidp6xfbhood&st=eif5unrp&dl=1');
         arenaTexture.wrapS = arenaTexture.wrapT = THREE.RepeatWrapping;
-        arenaTexture.repeat.set(8, 8);
+        arenaTexture.repeat.set(4, 4);
 
-        const arenaFloorGeo = new THREE.CircleGeometry(100, 128);
+        const arenaFloorGeo = new THREE.CircleGeometry(50, 128);
         const arenaFloorMat = new THREE.MeshPhongMaterial({ color: 0xffffff, map: arenaTexture, shininess: 10 });
         const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
         arenaFloor.rotation.x = -Math.PI/2;
@@ -1720,22 +1728,22 @@
         const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
         centers.forEach(c => {
             // Plataforma
-            const platGeo = new THREE.BoxGeometry(20, 4, 60);
+            const platGeo = new THREE.BoxGeometry(10, 4, 30);
             const plat = new THREE.Mesh(platGeo, arenaFloorMat);
-            plat.position.set(Math.cos(c) * 130, 2.0, Math.sin(c) * 130);
+            plat.position.set(Math.cos(c) * 65, 2.0, Math.sin(c) * 65);
             plat.rotation.y = -c;
             plat.receiveShadow = true;
             plat.castShadow = true;
             scene.add(plat);
 
             // Rampa
-            const rampLen = Math.sqrt(20*20 + 3.5*3.5);
-            const rampGeo = new THREE.BoxGeometry(rampLen, 0.2, 50);
+            const rampLen = Math.sqrt(10*10 + 3.5*3.5);
+            const rampGeo = new THREE.BoxGeometry(rampLen, 0.2, 25);
             const ramp = new THREE.Mesh(rampGeo, arenaFloorMat);
-            const midDist = 110;
+            const midDist = 55;
             ramp.position.set(Math.cos(c) * midDist, 2.25, Math.sin(c) * midDist);
             ramp.rotation.y = -c;
-            ramp.rotation.z = Math.atan2(3.5, 20);
+            ramp.rotation.z = Math.atan2(3.5, 10);
 
             ramp.receiveShadow = true;
             ramp.castShadow = true;
@@ -2299,29 +2307,29 @@
 
     function getGroundHeight(x, z) {
         const dist = Math.sqrt(x*x + z*z);
-        const angle = Math.atan2(z, x);
-        const sectorWidth = Math.PI / 4;
-        const halfWidth = sectorWidth / 2;
+
+        // Chão central
+        if (dist <= 50) return 0.5;
+        if (dist > 70) return 0; // Fora da arena
 
         const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
-        let inSector = false;
         for (let c of centers) {
-            let diff = Math.abs(angle - c);
-            if (diff > Math.PI) diff = 2 * Math.PI - diff;
-            if (diff < halfWidth) {
-                inSector = true;
-                break;
-            }
-        }
+            // Rotacionar o ponto (x, z) para o sistema local da rampa/plataforma
+            const cos = Math.cos(-c);
+            const sin = Math.sin(-c);
+            const localX = x * cos - z * sin;
+            const localZ = x * sin + z * cos;
 
-        if (dist <= 100) return 0.5;
-        if (inSector) {
-            if (dist <= 120) {
-                return 0.5 + (dist - 100) / 20 * 3.5;
-            } else if (dist <= 140) {
+            // Rampa: dist 50 a 60, largura 25 (|localZ| < 12.5)
+            if (localX >= 50 && localX <= 60 && Math.abs(localZ) <= 12.5) {
+                return 0.5 + (localX - 50) / 10 * 3.5;
+            }
+            // Plataforma: dist 60 a 70, largura 30 (|localZ| < 15)
+            if (localX > 60 && localX <= 70 && Math.abs(localZ) <= 15) {
                 return 4.0;
             }
         }
+
         return 0;
     }
 
