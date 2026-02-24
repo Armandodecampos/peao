@@ -977,7 +977,7 @@
     let cameraZoom = 1.0;
     const CAMERA_OFFSET = new THREE.Vector3(0, 40, 35);
 
-    const ARENA_RADIUS = 70;
+    const ARENA_RADIUS = 75;
 
     const heartShape = new THREE.Shape();
     heartShape.moveTo(0, 0);
@@ -1213,7 +1213,7 @@
             this.mesh = new THREE.Mesh(heartGeo, heartMat);
             const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
             const angle = centers[Math.floor(Math.random() * centers.length)];
-            const dist = 52 + Math.random() * 16;
+            const dist = 62 + Math.random() * 6;
             const x = Math.cos(angle) * dist;
             const z = Math.sin(angle) * dist;
             const y = getGroundHeight(x, z) + 1.0;
@@ -1320,7 +1320,7 @@
 
             const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
             const angle = centers[Math.floor(Math.random() * centers.length)];
-            const dist = 52 + Math.random() * 16;
+            const dist = 62 + Math.random() * 6;
             const x = Math.cos(angle) * dist;
             const z = Math.sin(angle) * dist;
             const y = getGroundHeight(x, z) + 0.8;
@@ -1719,9 +1719,9 @@
         // Paredes da Arena
         const wallMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide });
 
-        const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS, 8, 128, 1, true);
+        const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS + 5, ARENA_RADIUS + 5, 10, 128, 1, true);
         const outerWall = new THREE.Mesh(outerWallGeo, wallMat);
-        outerWall.position.y = 4.0;
+        outerWall.position.y = 2.0;
         scene.add(outerWall);
 
         // Adicionar Plataformas e Rampas
@@ -2436,7 +2436,15 @@
             ];
 
             const dist = new THREE.Vector2(obj.position.x, obj.position.z).length();
-            const trackHeight = getGroundHeight(obj.position.x, obj.position.z);
+            let trackHeight = getGroundHeight(obj.position.x, obj.position.z);
+
+            // Bloqueio de subida automática: precisa pular para entrar em rampas/plataformas
+            if (trackHeight > 0.5 && obj.position.y < 0.8) {
+                const radialDir = new THREE.Vector3(obj.position.x, 0, obj.position.z).normalize();
+                obj.position.addScaledVector(radialDir, -0.4);
+                c.vel.addScaledVector(radialDir, -0.1);
+                trackHeight = 0.5;
+            }
 
             let currentGroundLevel = trackHeight;
             collisionPoints.forEach(p => {
@@ -2667,6 +2675,19 @@
         if (targetPos) {
             let dir = new THREE.Vector3().subVectors(targetPos, config.mesh.position).normalize();
             config.vel.addScaledVector(dir, config.accel);
+
+            // Lógica de pulo da IA
+            const dist = Math.sqrt(config.mesh.position.x**2 + config.mesh.position.z**2);
+            const targetDist = Math.sqrt(targetPos.x**2 + targetPos.z**2);
+
+            if ((targetPos.y > config.mesh.position.y + 1.5) || (dist > 48 && dist < 52 && targetDist > 55)) {
+                if (Math.random() < 0.05) {
+                    if (config.mesh.lastGroundLevel !== undefined && Math.abs(config.mesh.position.y - config.mesh.lastGroundLevel) < 0.3) {
+                        config.vel.y = 0.5;
+                        try { SoundManager.playJump(); } catch(e){}
+                    }
+                }
+            }
         }
 
         // Separation force from other NPCs
