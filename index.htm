@@ -937,6 +937,7 @@
         }
     };
     const shapeKeys = Object.keys(BLADE_CONFIGS);
+    const textureLoader = new THREE.TextureLoader();
 
     let scene, camera, renderer, player, enemies = [];
     let previewScene, previewCamera, previewRenderer, previewBlade;
@@ -976,7 +977,7 @@
     let cameraZoom = 1.0;
     const CAMERA_OFFSET = new THREE.Vector3(0, 40, 35);
 
-    const ARENA_RADIUS = 100;
+    const ARENA_RADIUS = 140;
 
     const heartShape = new THREE.Shape();
     heartShape.moveTo(0, 0);
@@ -1041,7 +1042,7 @@
             this.mainGain.connect(this.ctx.destination);
 
             this.spinOsc = this.ctx.createOscillator();
-            this.spinOsc.type = 'sawtooth';
+            this.spinOsc.type = 'triangle';
             this.spinGain = this.ctx.createGain();
             this.spinGain.gain.value = 0;
             this.spinOsc.connect(this.spinGain);
@@ -1159,7 +1160,7 @@
         updateSpin(speed) {
             if (!this.ctx || !this.spinOsc) return;
             this.spinOsc.frequency.setTargetAtTime(50 + speed * 100, this.ctx.currentTime, 0.1);
-            this.spinGain.gain.setTargetAtTime(Math.min(0.1, speed * 0.05), this.ctx.currentTime, 0.1);
+            this.spinGain.gain.setTargetAtTime(Math.min(0.1, speed * 0.03), this.ctx.currentTime, 0.1);
         },
 
         stopSpin() {
@@ -1695,8 +1696,12 @@
         scene.add(floor);
 
         // Arena de Batalha (Cimento Queimado)
-        const arenaFloorGeo = new THREE.CircleGeometry(ARENA_RADIUS, 128);
-        const arenaFloorMat = new THREE.MeshPhongMaterial({ color: 0x444444, shininess: 10 }); // Cinza cimento
+        const arenaTexture = textureLoader.load('https://dl.dropbox.com/scl/fi/gh66sugd65o7bppoza6iq/textura-de-cimento-queimado.png?rlkey=mgc0pcnhhd8mjbidp6xfbhood&st=eif5unrp&dl=1');
+        arenaTexture.wrapS = arenaTexture.wrapT = THREE.RepeatWrapping;
+        arenaTexture.repeat.set(8, 8);
+
+        const arenaFloorGeo = new THREE.CircleGeometry(100, 128);
+        const arenaFloorMat = new THREE.MeshPhongMaterial({ color: 0xffffff, map: arenaTexture, shininess: 10 });
         const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
         arenaFloor.rotation.x = -Math.PI/2;
         arenaFloor.position.y = 0.5;
@@ -1706,10 +1711,36 @@
         // Paredes da Arena
         const wallMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide });
 
-        const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS, 5, 128, 1, true);
+        const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS, 8, 128, 1, true);
         const outerWall = new THREE.Mesh(outerWallGeo, wallMat);
-        outerWall.position.y = 3.0;
+        outerWall.position.y = 4.0;
         scene.add(outerWall);
+
+        // Adicionar Plataformas e Rampas
+        const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
+        centers.forEach(c => {
+            // Plataforma
+            const platGeo = new THREE.BoxGeometry(20, 4, 60);
+            const plat = new THREE.Mesh(platGeo, arenaFloorMat);
+            plat.position.set(Math.cos(c) * 130, 2.0, Math.sin(c) * 130);
+            plat.rotation.y = -c;
+            plat.receiveShadow = true;
+            plat.castShadow = true;
+            scene.add(plat);
+
+            // Rampa
+            const rampLen = Math.sqrt(20*20 + 3.5*3.5);
+            const rampGeo = new THREE.BoxGeometry(rampLen, 0.2, 50);
+            const ramp = new THREE.Mesh(rampGeo, arenaFloorMat);
+            const midDist = 110;
+            ramp.position.set(Math.cos(c) * midDist, 2.25, Math.sin(c) * midDist);
+            ramp.rotation.y = -c;
+            ramp.rotation.z = Math.atan2(3.5, 20);
+
+            ramp.receiveShadow = true;
+            ramp.castShadow = true;
+            scene.add(ramp);
+        });
 
         window.addEventListener('keydown', e => keys[e.key] = true);
         window.addEventListener('keyup', e => keys[e.key] = false);
@@ -2266,6 +2297,34 @@
         }
     }
 
+    function getGroundHeight(x, z) {
+        const dist = Math.sqrt(x*x + z*z);
+        const angle = Math.atan2(z, x);
+        const sectorWidth = Math.PI / 4;
+        const halfWidth = sectorWidth / 2;
+
+        const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
+        let inSector = false;
+        for (let c of centers) {
+            let diff = Math.abs(angle - c);
+            if (diff > Math.PI) diff = 2 * Math.PI - diff;
+            if (diff < halfWidth) {
+                inSector = true;
+                break;
+            }
+        }
+
+        if (dist <= 100) return 0.5;
+        if (inSector) {
+            if (dist <= 120) {
+                return 0.5 + (dist - 100) / 20 * 3.5;
+            } else if (dist <= 140) {
+                return 4.0;
+            }
+        }
+        return 0;
+    }
+
     function animate() {
         requestAnimationFrame(animate);
 
@@ -2369,8 +2428,7 @@
             ];
 
             const dist = new THREE.Vector2(obj.position.x, obj.position.z).length();
-            const onTrack = (dist <= ARENA_RADIUS);
-            const trackHeight = onTrack ? 0.5 : 0;
+            const trackHeight = getGroundHeight(obj.position.x, obj.position.z);
 
             let currentGroundLevel = trackHeight;
             collisionPoints.forEach(p => {
