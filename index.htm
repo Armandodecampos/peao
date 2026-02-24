@@ -724,6 +724,15 @@
                     <div id="shape-name" class="shape-title">PADRÃO</div>
                 </div>
 
+                <div class="config-section">
+                    <label class="section-label">CENÁRIO:</label>
+                    <div style="display: flex; gap: 10px; pointer-events: auto; margin-top: 10px;">
+                        <button id="btn-scenario-1" class="main-btn" style="padding: 10px 20px; font-size: 0.8rem; min-width: 120px;" onclick="setScenario(1)">CENÁRIO 1</button>
+                        <button id="btn-scenario-2" class="main-btn" style="padding: 10px 20px; font-size: 0.8rem; min-width: 120px; background: #666;" onclick="setScenario(2)">CENÁRIO 2</button>
+                    </div>
+                    <div style="font-size: 0.7rem; color: #aaa; margin-top: 5px;">CENÁRIO 2 TEM UM DOMO E LUZES!</div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -975,6 +984,9 @@
     let launchedBombs = [];
     let cameraShake = 0;
     let cameraZoom = 1.0;
+    let currentScenario = 1;
+    let scenario1Group, scenario2Group;
+    let scenario2Lights = [];
     const CAMERA_OFFSET = new THREE.Vector3(0, 40, 35);
 
     const ARENA_RADIUS = 80;
@@ -1589,6 +1601,38 @@
         } else {
             startBtn.style.opacity = "1";
         }
+
+        const btn1 = document.getElementById('btn-scenario-1');
+        const btn2 = document.getElementById('btn-scenario-2');
+        if (btn1 && btn2) {
+            btn1.style.background = currentScenario === 1 ? 'var(--primary)' : '#666';
+            btn1.style.color = currentScenario === 1 ? '#000' : '#fff';
+            btn2.style.background = currentScenario === 2 ? 'var(--primary)' : '#666';
+            btn2.style.color = currentScenario === 2 ? '#000' : '#fff';
+        }
+    }
+
+    function setScenario(num) {
+        currentScenario = num;
+        updateSkillsUI();
+        saveGame();
+        setupScenarios();
+        try { SoundManager.playCollect(); } catch(e){}
+    }
+
+    function setupScenarios() {
+        if (!scenario1Group || !scenario2Group) return;
+
+        scenario1Group.visible = (currentScenario === 1);
+        scenario2Group.visible = (currentScenario === 2);
+
+        if (currentScenario === 2) {
+            scene.background = new THREE.Color(0x050510);
+            scene.fog = new THREE.FogExp2(0x050510, 0.005);
+        } else {
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = null;
+        }
     }
 
     function modifySkill(skill, delta) {
@@ -1617,7 +1661,8 @@
             playerColor: document.getElementById('player-color').value,
             currentShapeIndex,
             totalCoins,
-            helperCount
+            helperCount,
+            currentScenario
         };
         localStorage.setItem('battleBladesProgress', JSON.stringify(data));
     }
@@ -1639,6 +1684,9 @@
                 helperCount = data.helperCount;
             } else if (data.hasHelper !== undefined) {
                 helperCount = data.hasHelper ? 1 : 0;
+            }
+            if (data.currentScenario !== undefined) {
+                currentScenario = data.currentScenario;
             }
 
             updateSkillsUI();
@@ -1697,6 +1745,11 @@
             if (loadingManager.onLoad) loadingManager.onLoad();
         }, 100);
 
+        scenario1Group = new THREE.Group();
+        scenario2Group = new THREE.Group();
+        scene.add(scenario1Group);
+        scene.add(scenario2Group);
+
         // Chão amplo (Terra)
         const floorGeo = new THREE.PlaneGeometry(2000, 2000);
         const floorMat = new THREE.MeshPhongMaterial({ color: 0x3d2817, shininess: 5 }); // Marrom terra
@@ -1721,14 +1774,14 @@
         arenaFloor.rotation.x = -Math.PI/2;
         arenaFloor.position.y = 0.5;
         arenaFloor.receiveShadow = true;
-        scene.add(arenaFloor);
+        scenario1Group.add(arenaFloor);
 
         // Paredes da Arena
         const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS, 10, 128, 1, true);
         const outerWall = new THREE.Mesh(outerWallGeo, woodMat);
         outerWall.material.side = THREE.DoubleSide;
         outerWall.position.y = 5.0;
-        scene.add(outerWall);
+        scenario1Group.add(outerWall);
 
         // Adicionar Plataformas e Rampas
         const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
@@ -1740,7 +1793,7 @@
             plat.rotation.y = -c;
             plat.receiveShadow = true;
             plat.castShadow = true;
-            scene.add(plat);
+            scenario1Group.add(plat);
 
             // Rampa
             const rampLen = Math.sqrt(10*10 + 3.5*3.5);
@@ -1753,7 +1806,87 @@
 
             ramp.receiveShadow = true;
             ramp.castShadow = true;
-            scene.add(ramp);
+            scenario1Group.add(ramp);
+        });
+
+        // --- CENÁRIO 2 (DOMO E LUZES) ---
+        const domeGeo = new THREE.SphereGeometry(150, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+        const domeMat = new THREE.MeshPhongMaterial({
+            color: 0x050515,
+            side: THREE.BackSide,
+            transparent: true,
+            opacity: 0.8,
+            shininess: 100
+        });
+        const dome = new THREE.Mesh(domeGeo, domeMat);
+        scenario2Group.add(dome);
+
+        // Floor for Scenario 2
+        const s2FloorGeo = new THREE.CircleGeometry(80, 128);
+        const s2FloorMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.1 });
+        const s2Floor = new THREE.Mesh(s2FloorGeo, s2FloorMat);
+        s2Floor.rotation.x = -Math.PI/2;
+        s2Floor.position.y = 0.49;
+        s2Floor.receiveShadow = true;
+        scenario2Group.add(s2Floor);
+
+        // Spotlights
+        const spotPositions = [
+            { x: 75, z: 0, color: 0x00ffff },
+            { x: -75, z: 0, color: 0xff00ff },
+            { x: 0, z: 75, color: 0xffff00 },
+            { x: 0, z: -75, color: 0x00ff00 }
+        ];
+
+        spotPositions.forEach((pos, i) => {
+            const spotLight = new THREE.SpotLight(pos.color, 5);
+            spotLight.position.set(pos.x, 2, pos.z);
+            spotLight.angle = Math.PI / 6;
+            spotLight.penumbra = 0.3;
+            spotLight.decay = 1;
+            spotLight.distance = 200;
+            scenario2Group.add(spotLight);
+            scenario2Group.add(spotLight.target);
+
+            // Visual Beam
+            const beamGeo = new THREE.CylinderGeometry(0.2, 10, 150, 32, 1, true);
+            beamGeo.translate(0, 75, 0);
+            beamGeo.rotateX(Math.PI / 2);
+            const beamMat = new THREE.MeshBasicMaterial({
+                color: pos.color,
+                transparent: true,
+                opacity: 0.4,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending
+            });
+            const beam = new THREE.Mesh(beamGeo, beamMat);
+            beam.position.copy(spotLight.position);
+            scenario2Group.add(beam);
+
+            scenario2Lights.push({ light: spotLight, beam: beam, baseAngle: i * Math.PI / 2 });
+        });
+
+        // Platforms and Ramps for Scenario 2 (Metallic)
+        const s2PlatMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.2 });
+        centers.forEach(c => {
+            const platGeo = new THREE.BoxGeometry(20, 4, 30);
+            const plat = new THREE.Mesh(platGeo, s2PlatMat);
+            plat.position.set(Math.cos(c) * 70, 2.0, Math.sin(c) * 70);
+            plat.rotation.y = -c;
+            plat.receiveShadow = true;
+            plat.castShadow = true;
+            scenario2Group.add(plat);
+
+            const rampLen = Math.sqrt(10*10 + 3.5*3.5);
+            const rampGeo = new THREE.BoxGeometry(rampLen, 0.2, 25);
+            const ramp = new THREE.Mesh(rampGeo, s2PlatMat);
+            const midDist = 55;
+            ramp.position.set(Math.cos(c) * midDist, 2.25, Math.sin(c) * midDist);
+            ramp.rotation.y = -c;
+            ramp.rotation.z = Math.atan2(3.5, 10);
+            ramp.receiveShadow = true;
+            ramp.castShadow = true;
+            scenario2Group.add(ramp);
         });
 
         window.addEventListener('keydown', e => keys[e.key] = true);
@@ -1831,6 +1964,7 @@
              }
         }, { passive: false });
 
+        setupScenarios();
         animate();
     }
 
@@ -2345,6 +2479,21 @@
         if (isPaused) {
             renderer.render(scene, camera);
             return;
+        }
+
+        if (currentScenario === 2 && scenario2Lights.length > 0) {
+            const time = Date.now() * 0.001;
+            scenario2Lights.forEach((sl, i) => {
+                const angle = sl.baseAngle + Math.sin(time * 0.5 + i) * 1.5;
+                const phi = Math.cos(time * 0.3 + i) * 0.5 + Math.PI / 4;
+
+                const tx = Math.cos(angle) * Math.sin(phi) * 40;
+                const ty = Math.cos(phi) * 40;
+                const tz = Math.sin(angle) * Math.sin(phi) * 40;
+
+                sl.light.target.position.set(tx, ty, tz);
+                sl.beam.lookAt(tx, ty, tz);
+            });
         }
 
         if (cameraJoystickInput.x !== 0 || cameraJoystickInput.y !== 0) {
