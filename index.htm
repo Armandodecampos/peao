@@ -977,7 +977,7 @@
     let cameraZoom = 1.0;
     const CAMERA_OFFSET = new THREE.Vector3(0, 40, 35);
 
-    const ARENA_RADIUS = 75;
+    const ARENA_RADIUS = 80;
 
     const heartShape = new THREE.Shape();
     heartShape.moveTo(0, 0);
@@ -1213,7 +1213,7 @@
             this.mesh = new THREE.Mesh(heartGeo, heartMat);
             const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
             const angle = centers[Math.floor(Math.random() * centers.length)];
-            const dist = 62 + Math.random() * 6;
+            const dist = 62 + Math.random() * 15;
             const x = Math.cos(angle) * dist;
             const z = Math.sin(angle) * dist;
             const y = getGroundHeight(x, z) + 1.0;
@@ -1320,7 +1320,7 @@
 
             const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
             const angle = centers[Math.floor(Math.random() * centers.length)];
-            const dist = 62 + Math.random() * 6;
+            const dist = 62 + Math.random() * 15;
             const x = Math.cos(angle) * dist;
             const z = Math.sin(angle) * dist;
             const y = getGroundHeight(x, z) + 0.8;
@@ -1710,6 +1710,11 @@
 
         const arenaFloorGeo = new THREE.CircleGeometry(50, 128);
         const arenaFloorMat = new THREE.MeshPhongMaterial({ color: 0xffffff, map: arenaTexture, shininess: 10 });
+        const woodTexture = textureLoader.load('https://dl.dropbox.com/scl/fi/3q729rojhlbzb1nfbj1t1/textura-de-ch-o-de-madeira.png?rlkey=r8u1iql8v9okm8qgxc5vr30j7&st=pb8g6qeh&dl=1');
+        woodTexture.wrapS = woodTexture.wrapT = THREE.RepeatWrapping;
+        woodTexture.repeat.set(2, 2);
+        const woodMat = new THREE.MeshPhongMaterial({ color: 0xffffff, map: woodTexture, shininess: 10 });
+
         const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
         arenaFloor.rotation.x = -Math.PI/2;
         arenaFloor.position.y = 0.5;
@@ -1717,20 +1722,19 @@
         scene.add(arenaFloor);
 
         // Paredes da Arena
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide });
-
-        const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS + 5, ARENA_RADIUS + 5, 10, 128, 1, true);
-        const outerWall = new THREE.Mesh(outerWallGeo, wallMat);
-        outerWall.position.y = 2.0;
+        const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS, 10, 128, 1, true);
+        const outerWall = new THREE.Mesh(outerWallGeo, woodMat);
+        outerWall.material.side = THREE.DoubleSide;
+        outerWall.position.y = 5.0;
         scene.add(outerWall);
 
         // Adicionar Plataformas e Rampas
         const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
         centers.forEach(c => {
-            // Plataforma
-            const platGeo = new THREE.BoxGeometry(10, 4, 30);
+            // Plataforma (Ajustada para dist 60 a 80 para coincidir com a lógica de colisão)
+            const platGeo = new THREE.BoxGeometry(20, 4, 30);
             const plat = new THREE.Mesh(platGeo, arenaFloorMat);
-            plat.position.set(Math.cos(c) * 65, 2.0, Math.sin(c) * 65);
+            plat.position.set(Math.cos(c) * 70, 2.0, Math.sin(c) * 70);
             plat.rotation.y = -c;
             plat.receiveShadow = true;
             plat.castShadow = true;
@@ -1739,7 +1743,7 @@
             // Rampa
             const rampLen = Math.sqrt(10*10 + 3.5*3.5);
             const rampGeo = new THREE.BoxGeometry(rampLen, 0.2, 25);
-            const ramp = new THREE.Mesh(rampGeo, arenaFloorMat);
+            const ramp = new THREE.Mesh(rampGeo, woodMat);
             const midDist = 55;
             ramp.position.set(Math.cos(c) * midDist, 2.25, Math.sin(c) * midDist);
             ramp.rotation.y = -c;
@@ -2310,7 +2314,7 @@
 
         // Chão central
         if (dist <= 50) return 0.5;
-        if (dist > 70) return 0; // Fora da arena
+        if (dist > 80) return 0; // Fora da arena
 
         const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
         for (let c of centers) {
@@ -2324,8 +2328,8 @@
             if (localX >= 50 && localX <= 60 && Math.abs(localZ) <= 12.5) {
                 return 0.5 + (localX - 50) / 10 * 3.5;
             }
-            // Plataforma: dist 60 a 70, largura 30 (|localZ| < 15)
-            if (localX > 60 && localX <= 70 && Math.abs(localZ) <= 15) {
+            // Plataforma: dist 60 a 80, largura 30 (|localZ| < 15)
+            if (localX > 60 && localX <= 80 && Math.abs(localZ) <= 15) {
                 return 4.0;
             }
         }
