@@ -2698,6 +2698,8 @@
                 gameOver = true;
                 if (win) {
                     SoundManager.playWin();
+                    helperCount = helperConfigs.filter(hc => !hc.isFallen).length;
+                    saveGame();
                 } else {
                     SoundManager.playLoss();
                     helperCount = 0;
