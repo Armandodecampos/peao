@@ -949,6 +949,10 @@
     const textureLoader = new THREE.TextureLoader();
 
     let scene, camera, renderer, player, enemies = [];
+    let wallUniforms = {
+        uPlayerPos: { value: new THREE.Vector3() },
+        uCamPos: { value: new THREE.Vector3() }
+    };
     let previewScene, previewCamera, previewRenderer, previewBlade;
     let currentShapeIndex = 0;
 
@@ -1775,11 +1779,72 @@
         arenaFloor.receiveShadow = true;
         scenario1Group.add(arenaFloor);
 
-        // Paredes da Arena
-        const outerWallGeo = new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS, 10, 128, 1, true);
-        const outerWall = new THREE.Mesh(outerWallGeo, woodMat);
-        outerWall.material.side = THREE.DoubleSide;
-        outerWall.position.y = 5.0;
+        // Paredes da Arena (Muros Altos e Grossos)
+        const wallInnerR = ARENA_RADIUS;
+        const wallOuterR = ARENA_RADIUS + 5;
+        const wallHeight = 25;
+        const wallShape = new THREE.Shape();
+        wallShape.absarc(0, 0, wallOuterR, 0, Math.PI * 2, false);
+        const wallHole = new THREE.Path();
+        wallHole.absarc(0, 0, wallInnerR, 0, Math.PI * 2, true);
+        wallShape.holes.push(wallHole);
+
+        const thickWallGeo = new THREE.ExtrudeGeometry(wallShape, {
+            depth: wallHeight,
+            bevelEnabled: false,
+            curveSegments: 64
+        });
+        thickWallGeo.rotateX(-Math.PI / 2);
+
+        // Uniforms for transparency effect are already defined globally
+
+        const setupWallMaterial = (material) => {
+            material.transparent = true;
+            material.onBeforeCompile = (shader) => {
+                shader.uniforms.uPlayerPos = wallUniforms.uPlayerPos;
+                shader.uniforms.uCamPos = wallUniforms.uCamPos;
+                shader.vertexShader = `
+                    varying vec3 vWorldPos;
+                ` + shader.vertexShader.replace(
+                    '#include <worldpos_vertex>',
+                    `
+                    #include <worldpos_vertex>
+                    vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                    `
+                );
+                shader.fragmentShader = `
+                    varying vec3 vWorldPos;
+                    uniform vec3 uPlayerPos;
+                    uniform vec3 uCamPos;
+                ` + shader.fragmentShader.replace(
+                    '#include <dithering_fragment>',
+                    `
+                    #include <dithering_fragment>
+                    vec3 dirToPlayer = normalize(uPlayerPos - uCamPos);
+                    vec3 dirToFrag = normalize(vWorldPos - uCamPos);
+                    float dotProd = dot(dirToPlayer, dirToFrag);
+                    float distToLine = length(cross(dirToPlayer, vWorldPos - uCamPos));
+                    float distCamToPlayer = distance(uCamPos, uPlayerPos);
+                    float distCamToFrag = distance(uCamPos, vWorldPos);
+
+                    if (dotProd > 0.9 && distCamToFrag < distCamToPlayer) {
+                        float holeSize = 8.0;
+                        float softness = 4.0;
+                        float alphaFactor = smoothstep(holeSize, holeSize + softness, distToLine);
+                        gl_FragColor.a *= mix(0.2, 1.0, alphaFactor);
+                    }
+                    `
+                );
+            };
+        };
+
+        const thickWallMat1 = woodMat.clone();
+        setupWallMaterial(thickWallMat1);
+
+        const outerWall = new THREE.Mesh(thickWallGeo, thickWallMat1);
+        outerWall.castShadow = true;
+        outerWall.receiveShadow = true;
+        outerWall.position.y = 0; // Starts from ground
         scenario1Group.add(outerWall);
 
         // Adicionar Plataformas e Rampas
@@ -1898,6 +1963,15 @@
             ramp.castShadow = true;
             scenario2Group.add(ramp);
         });
+
+        // Muro para Cenário 2
+        const thickWallMat2 = s2PlatMat.clone();
+        setupWallMaterial(thickWallMat2);
+        const outerWall2 = new THREE.Mesh(thickWallGeo, thickWallMat2);
+        outerWall2.castShadow = true;
+        outerWall2.receiveShadow = true;
+        outerWall2.position.y = 0;
+        scenario2Group.add(outerWall2);
 
         window.addEventListener('keydown', e => keys[e.key] = true);
         window.addEventListener('keyup', e => keys[e.key] = false);
@@ -2485,6 +2559,12 @@
 
     function animate() {
         requestAnimationFrame(animate);
+
+        // Update Wall Transparency Uniforms
+        if (player && wallUniforms) {
+            wallUniforms.uPlayerPos.value.copy(player.position);
+            wallUniforms.uCamPos.value.copy(camera.position);
+        }
 
         if (isPaused) {
             renderer.render(scene, camera);
