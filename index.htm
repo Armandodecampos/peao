@@ -2075,7 +2075,7 @@
     function resetPositions() {
         const spawnDist = 15; // Aproximar para combate imediato
 
-        player.position.set(spawnDist, 0, 0);
+        player.position.set(spawnDist, 0.5, 0);
         player.rotation.set(0,0,0);
         if (player.children[0]) player.children[0].rotation.set(0,0,0);
         playerConfig.vel.set(0,0,0);
@@ -2088,7 +2088,7 @@
 
         helperConfigs.forEach((hc, i) => {
             const angle = ((i + 1) / (helperConfigs.length + 1)) * Math.PI;
-            hc.mesh.position.set(Math.cos(angle) * spawnDist, 0, Math.sin(angle) * spawnDist);
+            hc.mesh.position.set(Math.cos(angle) * spawnDist, 0.5, Math.sin(angle) * spawnDist);
             hc.mesh.rotation.set(0,0,0);
             if (hc.mesh.children[0]) hc.mesh.children[0].rotation.set(0,0,0);
             hc.vel.set(0,0,0);
@@ -2103,7 +2103,7 @@
 
         enemies.forEach((e, i) => {
             const angle = ((i + 1) / (enemies.length + 1)) * Math.PI * 2;
-            e.pivot.position.set(Math.cos(angle) * spawnDist, 0, Math.sin(angle) * spawnDist);
+            e.pivot.position.set(Math.cos(angle) * spawnDist, 0.5, Math.sin(angle) * spawnDist);
             e.pivot.rotation.set(0,0,0);
             if (e.pivot.children[0]) e.pivot.children[0].rotation.set(0,0,0);
             const c = enemyConfigs[i];
@@ -2445,13 +2445,19 @@
             let trackHeight = getGroundHeight(obj.position.x, obj.position.z);
 
             // Bloqueio de subida automática: se a diferença de altura for muito grande, trata como parede
-            if (trackHeight > obj.position.y + 0.08) {
+            if (trackHeight > obj.position.y + 0.3) {
                 // Desfazer movimento lateral
-                obj.position.x -= c.vel.x;
-                obj.position.z -= c.vel.z;
+                const velX = c.vel.x;
+                const velZ = c.vel.z;
+                obj.position.x -= velX;
+                obj.position.z -= velZ;
 
-                const radialDir = new THREE.Vector3(obj.position.x, 0, obj.position.z).normalize();
-                obj.position.addScaledVector(radialDir, -0.5); // Empurrão firme para fora
+                // Empurrão para trás oposto à direção que tentou mover
+                const pushDir = new THREE.Vector3(velX, 0, velZ);
+                if (pushDir.lengthSq() > 0) {
+                    pushDir.normalize();
+                    obj.position.addScaledVector(pushDir, -0.5);
+                }
 
                 c.vel.x *= -0.8; // Rebate velocidade
                 c.vel.z *= -0.8;
@@ -2460,7 +2466,7 @@
 
                 // Recalcula altura no ponto seguro e garante que não houve "salto"
                 const safeHeight = getGroundHeight(obj.position.x, obj.position.z);
-                if (safeHeight > obj.position.y + 0.08) {
+                if (safeHeight > obj.position.y + 0.3) {
                     trackHeight = (obj.lastGroundLevel !== undefined) ? obj.lastGroundLevel : obj.position.y;
                 } else {
                     trackHeight = safeHeight;
@@ -2702,8 +2708,8 @@
             const dist = Math.sqrt(config.mesh.position.x**2 + config.mesh.position.z**2);
             const targetDist = Math.sqrt(targetPos.x**2 + targetPos.z**2);
 
-            if ((targetPos.y > config.mesh.position.y + 1.5) || (dist > 48 && dist < 52 && targetDist > 55)) {
-                if (Math.random() < 0.05) {
+            if ((targetPos.y > config.mesh.position.y + 1.0) || (dist > 48 && dist < 52 && targetDist > 55)) {
+                if (Math.random() < 0.15) {
                     if (config.mesh.lastGroundLevel !== undefined && Math.abs(config.mesh.position.y - config.mesh.lastGroundLevel) < 0.3) {
                         config.vel.y = 0.5;
                         try { SoundManager.playJump(); } catch(e){}
