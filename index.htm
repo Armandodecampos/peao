@@ -649,6 +649,30 @@
         #item-slot-icon {
             font-size: 2rem;
         }
+
+        #launch-overlay {
+            display: none;
+            justify-content: center;
+            background: rgba(0,0,0,0.8);
+            z-index: 1500;
+        }
+        .power-bar-container {
+            width: 100%;
+            height: 35px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            border: 2px solid var(--primary);
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+        #power-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #f1c40f, #e67e22, #f1c40f);
+            background-size: 200% 100%;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
     </style>
 </head>
 <body>
@@ -661,6 +685,21 @@
 </div>
 
 <div id="countdown-overlay"></div>
+
+<div id="launch-overlay" class="overlay">
+    <div class="header-section">
+        <h1 class="glow-text">LANÇAMENTO</h1>
+        <p class="subtitle orbitron">CAPSULE SUA FORÇA</p>
+    </div>
+    <div class="start-container" style="justify-content: center;">
+        <div class="main-panel glass" style="max-width: 400px; padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 30px;">
+            <div class="power-bar-container">
+                <div id="power-bar-fill"></div>
+            </div>
+            <button class="main-btn orbitron" style="width: 100%;" onclick="launchBlade()">LANÇAR</button>
+        </div>
+    </div>
+</div>
 
 <div id="camera-toggle" class="camera-btn" onclick="toggleCamera()" title="Alternar Câmera">
     🎥
@@ -981,6 +1020,9 @@
     let gameOver = false;
     let gameStarted = false;
     let isPaused = false;
+    let isLaunchPhase = false;
+    let launchPower = 0;
+    let launchDirection = 1;
     let raceActive = false;
     let resultPending = false;
     let sparks = [];
@@ -1774,7 +1816,7 @@
         arenaTexture.wrapS = arenaTexture.wrapT = THREE.RepeatWrapping;
         arenaTexture.repeat.set(4, 4);
 
-        const arenaFloorGeo = new THREE.CylinderGeometry(50, 50, 2, 32);
+        const arenaFloorGeo = new THREE.CylinderGeometry(50, 50, 4, 32);
         const arenaFloorMat = new THREE.MeshPhongMaterial({ color: 0xffffff, map: arenaTexture, shininess: 10 });
         const woodTexture = textureLoader.load('https://dl.dropbox.com/scl/fi/3q729rojhlbzb1nfbj1t1/textura-de-ch-o-de-madeira.png?rlkey=r8u1iql8v9okm8qgxc5vr30j7&st=pb8g6qeh&dl=1');
         woodTexture.wrapS = woodTexture.wrapT = THREE.RepeatWrapping;
@@ -1782,7 +1824,7 @@
         const woodMat = new THREE.MeshPhongMaterial({ color: 0xffffff, map: woodTexture, shininess: 10 });
 
         const arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
-        arenaFloor.position.y = 1.0;
+        arenaFloor.position.y = 2.0;
         arenaFloor.receiveShadow = true;
         scenario1Group.add(arenaFloor);
 
@@ -1865,7 +1907,7 @@
             // Plataforma (Ajustada para dist 60 a 80 para coincidir com a lógica de colisão)
             const platGeo = new THREE.BoxGeometry(20, 4, 30);
             const plat = new THREE.Mesh(platGeo, arenaFloorMat);
-            plat.position.set(Math.cos(c) * 70, 2.0, Math.sin(c) * 70);
+            plat.position.set(Math.cos(c) * 70, 4.0, Math.sin(c) * 70);
             plat.rotation.y = -c;
             plat.receiveShadow = true;
             plat.castShadow = true;
@@ -1876,7 +1918,7 @@
             const rampGeo = new THREE.BoxGeometry(rampLen, 0.2, 25);
             const ramp = new THREE.Mesh(rampGeo, woodMat);
             const midDist = 55;
-            ramp.position.set(Math.cos(c) * midDist, 3.0, Math.sin(c) * midDist);
+            ramp.position.set(Math.cos(c) * midDist, 5.0, Math.sin(c) * midDist);
             ramp.rotation.y = -c;
             ramp.rotation.z = Math.atan2(2.0, 10);
 
@@ -1907,9 +1949,9 @@
         scenario2Group.add(s2Floor);
 
         // Central Arena for Scenario 2 (Raised Cylinder)
-        const s2ArenaGeo = new THREE.CylinderGeometry(50, 50, 2, 32);
+        const s2ArenaGeo = new THREE.CylinderGeometry(50, 50, 4, 32);
         const s2Arena = new THREE.Mesh(s2ArenaGeo, s2FloorMat);
-        s2Arena.position.y = 1.0;
+        s2Arena.position.y = 2.0;
         s2Arena.receiveShadow = true;
         scenario2Group.add(s2Arena);
 
@@ -1923,8 +1965,19 @@
 
         spotPositions.forEach((pos, i) => {
             const spotLight = new THREE.SpotLight(pos.color, 5);
-            spotLight.position.set(pos.x, 130, pos.z);
+            spotLight.position.set(pos.x, 145, pos.z);
             spotLight.angle = Math.PI / 6;
+
+            // Light Source Visual
+            const lampGeo = new THREE.SphereGeometry(2, 16, 16);
+            const lampMat = new THREE.MeshStandardMaterial({
+                color: pos.color,
+                emissive: pos.color,
+                emissiveIntensity: 2
+            });
+            const lamp = new THREE.Mesh(lampGeo, lampMat);
+            lamp.position.copy(spotLight.position);
+            scenario2Group.add(lamp);
             spotLight.penumbra = 0.3;
             spotLight.decay = 1;
             spotLight.distance = 250;
@@ -1950,7 +2003,7 @@
         });
 
         // Global diffuse light for Scenario 2
-        const s2GlobalLight = new THREE.AmbientLight(0xffffff, 0.45);
+        const s2GlobalLight = new THREE.AmbientLight(0xffffff, 0.85);
         scenario2Group.add(s2GlobalLight);
 
         // Platforms and Ramps for Scenario 2 (Metallic)
@@ -1958,7 +2011,7 @@
         centers.forEach(c => {
             const platGeo = new THREE.BoxGeometry(20, 4, 30);
             const plat = new THREE.Mesh(platGeo, s2PlatMat);
-            plat.position.set(Math.cos(c) * 70, 2.0, Math.sin(c) * 70);
+            plat.position.set(Math.cos(c) * 70, 4.0, Math.sin(c) * 70);
             plat.rotation.y = -c;
             plat.receiveShadow = true;
             plat.castShadow = true;
@@ -1968,7 +2021,7 @@
             const rampGeo = new THREE.BoxGeometry(rampLen, 0.2, 25);
             const ramp = new THREE.Mesh(rampGeo, s2PlatMat);
             const midDist = 55;
-            ramp.position.set(Math.cos(c) * midDist, 3.0, Math.sin(c) * midDist);
+            ramp.position.set(Math.cos(c) * midDist, 5.0, Math.sin(c) * midDist);
             ramp.rotation.y = -c;
             ramp.rotation.z = Math.atan2(2.0, 10);
             ramp.receiveShadow = true;
@@ -2164,7 +2217,6 @@
         try {
             SoundManager.init();
         } catch(e) { console.error("SoundManager init error:", e); }
-        SoundManager.playStart();
 
         if(player) {
             scene.remove(player);
@@ -2277,6 +2329,24 @@
         document.getElementById('settings-btn').style.display = 'flex';
         gameStarted = true;
 
+        startLaunchPhase();
+    }
+
+    function startLaunchPhase() {
+        isLaunchPhase = true;
+        launchPower = 0;
+        launchDirection = 1;
+        document.getElementById('launch-overlay').style.display = 'flex';
+        try { SoundManager.playCollect(); } catch(e){}
+    }
+
+    function launchBlade() {
+        isLaunchPhase = false;
+        document.getElementById('launch-overlay').style.display = 'none';
+        // Stamina do player é definida pelo poder do lançamento (mínimo de 20 para jogabilidade)
+        playerConfig.stamina = Math.max(20, launchPower);
+
+        try { SoundManager.playStart(); } catch(e){}
         startCountdown();
     }
 
@@ -2305,7 +2375,7 @@
     function resetPositions() {
         const spawnDist = 15; // Aproximar para combate imediato
 
-        player.position.set(spawnDist, 2.0, 0);
+        player.position.set(spawnDist, 4.0, 0);
         player.rotation.set(0,0,0);
         if (player.children[0]) player.children[0].rotation.set(0,0,0);
         playerConfig.vel.set(0,0,0);
@@ -2318,7 +2388,7 @@
 
         helperConfigs.forEach((hc, i) => {
             const angle = ((i + 1) / (helperConfigs.length + 1)) * Math.PI;
-            hc.mesh.position.set(Math.cos(angle) * spawnDist, 2.0, Math.sin(angle) * spawnDist);
+            hc.mesh.position.set(Math.cos(angle) * spawnDist, 4.0, Math.sin(angle) * spawnDist);
             hc.mesh.rotation.set(0,0,0);
             if (hc.mesh.children[0]) hc.mesh.children[0].rotation.set(0,0,0);
             hc.vel.set(0,0,0);
@@ -2333,7 +2403,7 @@
 
         enemies.forEach((e, i) => {
             const angle = ((i + 1) / (enemies.length + 1)) * Math.PI * 2;
-            e.pivot.position.set(Math.cos(angle) * spawnDist, 2.0, Math.sin(angle) * spawnDist);
+            e.pivot.position.set(Math.cos(angle) * spawnDist, 4.0, Math.sin(angle) * spawnDist);
             e.pivot.rotation.set(0,0,0);
             if (e.pivot.children[0]) e.pivot.children[0].rotation.set(0,0,0);
             const c = enemyConfigs[i];
@@ -2545,7 +2615,7 @@
         const dist = Math.sqrt(x*x + z*z);
 
         // Chão central
-        if (dist <= 50) return 2.0;
+        if (dist <= 50) return 4.0;
         if (dist > 80) return 0; // Fora da arena
 
         const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
@@ -2558,11 +2628,11 @@
 
             // Rampa: dist 50 a 60, largura 25 (|localZ| < 12.5)
             if (localX >= 50 && localX <= 60 && Math.abs(localZ) <= 12.5) {
-                return 2.0 + (localX - 50) / 10 * 2.0;
+                return 4.0 + (localX - 50) / 10 * 2.0;
             }
             // Plataforma: dist 60 a 80, largura 30 (|localZ| < 15)
             if (localX > 60 && localX <= 80 && Math.abs(localZ) <= 15) {
-                return 4.0;
+                return 6.0;
             }
         }
 
@@ -2585,6 +2655,14 @@
         if (isPaused) {
             renderer.render(scene, camera);
             return;
+        }
+
+        if (isLaunchPhase) {
+            launchPower += 4 * launchDirection; // Velocidade do loop
+            if (launchPower >= 100) { launchPower = 100; launchDirection = -1; }
+            if (launchPower <= 0) { launchPower = 0; launchDirection = 1; }
+            const bar = document.getElementById('power-bar-fill');
+            if (bar) bar.style.width = launchPower + '%';
         }
 
         if (currentScenario === 2 && scenario2Lights.length > 0) {
@@ -2771,7 +2849,10 @@
                 let passiveDecay = (obj === player ? 0.015 : 0.02);
                 // Impacto da resistência na stamina reduzido para 1% por ponto
                 if (obj === player) passiveDecay *= Math.max(0.1, 1 - playerSkills.resistencia * 0.01);
-                c.stamina -= passiveDecay;
+
+                if (raceActive) {
+                    c.stamina -= passiveDecay;
+                }
 
                 // Rotação sincronizada com a estabilidade (stamina)
                 let baseRotSpeed = 3.5;
