@@ -3073,9 +3073,13 @@
         helperConfigs.forEach(hc => updateAI(hc, true));
 
         if (vortexEffectMesh) {
-            vortexEffectMesh.rotation.y += 0.2;
+            vortexEffectMesh.rotation.y += 0.4;
+            const count = vortexEffectMesh.children.length;
             vortexEffectMesh.children.forEach((child, i) => {
-                child.position.y = 1 + Math.sin(Date.now() * 0.005 + i) * 0.5;
+                const t = Date.now() * 0.01;
+                child.position.y = (i / count) * 7.0 + Math.sin(t + i) * 0.3;
+                const s = 1.0 + Math.sin(t * 0.5 + i) * 0.15;
+                child.scale.set(s, s, s);
             });
         }
 
@@ -3314,18 +3318,21 @@
         vortexEffectMesh = new THREE.Group();
 
         const ringMat = new THREE.MeshBasicMaterial({
-            color: 0xf1c40f,
+            color: 0xffffff,
             transparent: true,
-            opacity: 0.4,
-            side: THREE.DoubleSide
+            opacity: 0.3,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending
         });
 
-        for (let i = 0; i < 6; i++) {
-            const r = 1.8 + i * 0.3;
-            const ringGeo = new THREE.TorusGeometry(r, 0.04, 8, 30);
+        const numRings = 20;
+        for (let i = 0; i < numRings; i++) {
+            const r = 1.2 + (i / numRings) * 3.5;
+            const ringGeo = new THREE.TorusGeometry(r, 0.06, 8, 40);
             const ring = new THREE.Mesh(ringGeo, ringMat);
-            ring.position.y = i * 0.5;
-            ring.rotation.x = Math.PI / 2;
+            ring.position.y = (i / numRings) * 7.0;
+            ring.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+            ring.rotation.z = Math.random() * Math.PI;
             vortexEffectMesh.add(ring);
         }
 
