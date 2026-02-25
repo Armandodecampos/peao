@@ -906,6 +906,12 @@
 </div>
 
 <div id="ui">
+    <div id="vortex-ui" style="position: absolute; top: 20px; left: 20px; width: 180px; display: none; pointer-events: none; flex-direction: column; align-items: flex-start; z-index: 100;">
+        <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold; color: #f1c40f; text-shadow: 0 0 5px rgba(0,0,0,0.8);">ESPECIAL VÓRTICE</div>
+        <div class="stat-bar" style="border-color: rgba(241, 196, 15, 0.4); background: rgba(0,0,0,0.3); height: 10px;">
+            <div id="vortex-bar-fill" class="fill" style="width: 0%; background: linear-gradient(90deg, #f1c40f, #ffeb3b); box-shadow: 0 0 15px #f1c40f;"></div>
+        </div>
+    </div>
     <div id="player-ui" class="floating-ui">
         <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold;">VOCÊ</div>
         <div class="stat-bar"><div id="player-stamina" class="fill"></div></div>
@@ -932,6 +938,7 @@
         </div>
     </div>
     <div class="control-group">
+        <div id="btn-vortex" class="ctrl-btn" style="display: none; background: rgba(241, 196, 15, 0.4); border-color: #f1c40f; color: #f1c40f; margin-bottom: 10px; width: 110px; height: 50px; font-size: 1rem; font-weight: 900; border-radius: 25px; box-shadow: 0 0 15px rgba(241, 196, 15, 0.4);" onclick="activateVortex()">VÓRTICE</div>
         <div id="ctrl-jump" class="ctrl-btn">PULO</div>
         <div id="joystick-container" class="joystick-container">
             <div id="joystick-handle" class="joystick-handle"></div>
@@ -1089,6 +1096,11 @@
     let launchedBombs = [];
     let cameraShake = 0;
     let cameraZoom = 1.0;
+    let vortexCharge = 0;
+    let isVortexActive = false;
+    let vortexTimeout = null;
+    let vortexEffectMesh = null;
+    let lastPlayerStamina = 100;
     let currentScenario = 1;
     let scenario1Group, scenario2Group;
     let scenario2Lights = [];
@@ -1559,14 +1571,23 @@
 
     function initMobileControls() {
         const jumpBtn = document.getElementById('ctrl-jump');
+        const vortexBtn = document.getElementById('btn-vortex');
 
         const jumpStart = (e) => {
             e.preventDefault();
             requestJump();
         };
 
+        const vortexStart = (e) => {
+            e.preventDefault();
+            activateVortex();
+        };
+
         jumpBtn.addEventListener('touchstart', jumpStart, { passive: false });
         jumpBtn.addEventListener('mousedown', jumpStart);
+
+        vortexBtn.addEventListener('touchstart', vortexStart, { passive: false });
+        vortexBtn.addEventListener('mousedown', vortexStart);
 
         initJoystick('joystick-container', 'joystick-handle', cameraJoystickInput);
         initJoystick('move-joystick-container', 'move-joystick-handle', moveJoystickInput);
@@ -2313,6 +2334,11 @@
         document.getElementById('level-ui').innerText = `NÍVEL ${currentLevel}`;
         document.getElementById('level-ui').style.display = 'block';
 
+        vortexCharge = 0;
+        isVortexActive = false;
+        if (vortexTimeout) clearTimeout(vortexTimeout);
+        lastPlayerStamina = 100;
+
         try {
             SoundManager.init();
         } catch(e) { console.error("SoundManager init error:", e); }
@@ -2479,6 +2505,15 @@
         if (player.children[0]) player.children[0].rotation.set(0,0,0);
         playerConfig.vel.set(0,0,0);
         playerConfig.stamina = 100;
+        lastPlayerStamina = 100;
+        vortexCharge = 0;
+        isVortexActive = false;
+        if (vortexTimeout) clearTimeout(vortexTimeout);
+        if (vortexEffectMesh) {
+            if (player) player.remove(vortexEffectMesh);
+            vortexEffectMesh = null;
+        }
+
         playerConfig.isFallen = false;
         playerConfig.hasBomb = false;
         document.getElementById('item-slot').style.display = 'none';
@@ -2686,7 +2721,9 @@
 
                     // Aplica Força se for o player envolvido (Impacto reduzido para 5% por ponto)
                     if (b1.mesh === player || b2.mesh === player) {
-                        power *= (1 + playerSkills.forca * 0.05);
+                        let forceBonus = playerSkills.forca * 0.05;
+                        if (isVortexActive) forceBonus = (playerSkills.forca * 2 + 5) * 0.05; // Dobra a habilidade e ganha bônus base
+                        power *= (1 + forceBonus);
                     }
 
                     b1.cfg.vel.addScaledVector(forceDir, power / b1.cfg.mass);
@@ -2702,8 +2739,16 @@
                     let damage2 = baseDamage;
 
                     // Aplica Resistência apenas se o envolvido for o player (Impacto reduzido para 3% por ponto)
-                    if (b1.mesh === player) damage1 *= Math.max(0.1, 1 - playerSkills.resistencia * 0.03);
-                    if (b2.mesh === player) damage2 *= Math.max(0.1, 1 - playerSkills.resistencia * 0.03);
+                    if (b1.mesh === player) {
+                        let resBonus = playerSkills.resistencia * 0.03;
+                        if (isVortexActive) resBonus = (playerSkills.resistencia * 2 + 5) * 0.03;
+                        damage1 *= Math.max(0.1, 1 - resBonus);
+                    }
+                    if (b2.mesh === player) {
+                        let resBonus = playerSkills.resistencia * 0.03;
+                        if (isVortexActive) resBonus = (playerSkills.resistencia * 2 + 5) * 0.03;
+                        damage2 *= Math.max(0.1, 1 - resBonus);
+                    }
 
                     b1.cfg.stamina -= damage1;
                     b2.cfg.stamina -= damage2;
@@ -2831,7 +2876,8 @@
         if (raceActive) {
             // Movimento do Jogador
             if (!playerConfig.isFallen) {
-                const a = playerConfig.accel;
+                let a = playerConfig.accel;
+                if (isVortexActive) a *= 1.5; // Aumento significativo de velocidade
 
                 const forward = new THREE.Vector3();
                 camera.getWorldDirection(forward);
@@ -2968,7 +3014,11 @@
                     // Rotação sincronizada com a estabilidade (stamina)
                     let baseRotSpeed = 3.5;
                     // Impacto da velocidade na rotação reduzido para 2% por ponto
-                    if (obj === player) baseRotSpeed *= (1 + playerSkills.velocidade * 0.02);
+                    if (obj === player) {
+                        let speedSkill = playerSkills.velocidade;
+                        if (isVortexActive) speedSkill = playerSkills.velocidade * 2 + 5;
+                        baseRotSpeed *= (1 + speedSkill * 0.02);
+                    }
                     c.rotationSpeed = (c.stamina / 100) * baseRotSpeed;
                     if (spinner) spinner.rotation.y += c.rotationSpeed;
 
@@ -3022,8 +3072,36 @@
         enemyConfigs.forEach(c => updateAI(c, false));
         helperConfigs.forEach(hc => updateAI(hc, true));
 
+        if (vortexEffectMesh) {
+            vortexEffectMesh.rotation.y += 0.2;
+            vortexEffectMesh.children.forEach((child, i) => {
+                child.position.y = 1 + Math.sin(Date.now() * 0.005 + i) * 0.5;
+            });
+        }
+
         // Atualizar Stamina Player e UI
         const pStamina = Math.max(0, playerConfig.stamina);
+
+        if (raceActive && !playerConfig.isFallen) {
+            if (pStamina < lastPlayerStamina) {
+                const damage = lastPlayerStamina - pStamina;
+                vortexCharge = Math.min(100, vortexCharge + damage * 2);
+            }
+            lastPlayerStamina = pStamina;
+        }
+
+        const vortexUI = document.getElementById('vortex-ui');
+        if (vortexUI) {
+            vortexUI.style.display = gameStarted ? 'flex' : 'none';
+            const vFill = document.getElementById('vortex-bar-fill');
+            if (vFill) vFill.style.width = vortexCharge + '%';
+        }
+
+        const vBtn = document.getElementById('btn-vortex');
+        if (vBtn) {
+            vBtn.style.display = (gameStarted && raceActive && vortexCharge >= 100 && !isVortexActive) ? 'flex' : 'none';
+        }
+
         const pBar = document.getElementById('player-stamina');
         if (pBar) {
             pBar.style.width = pStamina + '%';
@@ -3203,6 +3281,62 @@
             if (nearestOpponent && config.mesh.position.distanceTo(nearestOpponent.position) < 50) {
                 launchBomb(config, isHelper);
             }
+        }
+    }
+
+    function activateVortex() {
+        if (vortexCharge < 100 || isVortexActive) return;
+
+        isVortexActive = true;
+        vortexCharge = 0;
+        document.getElementById('vortex-bar-fill').style.width = '0%';
+        document.getElementById('btn-vortex').style.display = 'none';
+
+        // Ganha 20% de vida (stamina)
+        playerConfig.stamina = Math.min(100, playerConfig.stamina + 20);
+
+        // Criar efeito de furacão
+        createVortexEffect();
+
+        // Som de ativação
+        try { SoundManager.playCollect(); } catch(e){}
+
+        // Timer de 5 segundos
+        if (vortexTimeout) clearTimeout(vortexTimeout);
+        vortexTimeout = setTimeout(() => {
+            deactivateVortex();
+        }, 5000);
+    }
+
+    function createVortexEffect() {
+        if (vortexEffectMesh || !player) return;
+
+        vortexEffectMesh = new THREE.Group();
+
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xf1c40f,
+            transparent: true,
+            opacity: 0.4,
+            side: THREE.DoubleSide
+        });
+
+        for (let i = 0; i < 6; i++) {
+            const r = 1.8 + i * 0.3;
+            const ringGeo = new THREE.TorusGeometry(r, 0.04, 8, 30);
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.y = i * 0.5;
+            ring.rotation.x = Math.PI / 2;
+            vortexEffectMesh.add(ring);
+        }
+
+        player.add(vortexEffectMesh);
+    }
+
+    function deactivateVortex() {
+        isVortexActive = false;
+        if (vortexEffectMesh && player) {
+            player.remove(vortexEffectMesh);
+            vortexEffectMesh = null;
         }
     }
 
