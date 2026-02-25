@@ -701,6 +701,21 @@
     </div>
 </div>
 
+<div id="confirm-modal" class="overlay" style="display: none; justify-content: center; z-index: 2000;">
+    <div class="header-section">
+        <h1 class="glow-text">NOVO JOGO?</h1>
+    </div>
+    <div class="start-container" style="justify-content: center;">
+        <div class="main-panel glass" style="max-width: 500px; padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 30px; text-align: center;">
+            <p style="font-size: 1.2rem; line-height: 1.6;">Tem certeza que deseja iniciar um novo jogo?<br><br><span style="color: var(--primary); font-weight: bold;">Todos os seus pontos, moedas e itens serão apagados!</span></p>
+            <div style="display: flex; gap: 20px; width: 100%; justify-content: center;">
+                <button class="main-btn orbitron" style="flex: 1; max-width: 180px; background: #e74c3c; color: white;" onclick="hideConfirmModal()">NÃO</button>
+                <button class="main-btn orbitron" style="flex: 1; max-width: 180px;" onclick="confirmNewGame()">SIM</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="camera-toggle" class="camera-btn" onclick="toggleCamera()" title="Alternar Câmera">
     🎥
 </div>
@@ -2501,16 +2516,25 @@
     }
 
     function startNewGame() {
-        if (confirm("Tem certeza que deseja iniciar um novo jogo? Todos os seus pontos, moedas e itens serão apagados!")) {
-            currentLevel = 1;
-            playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
-            availablePoints = 3;
-            totalCoins = 0;
-            helperCount = 0;
-            updateSkillsUI();
-            saveGame();
-            continueGame();
-        }
+        document.getElementById('confirm-modal').style.display = 'flex';
+        try { SoundManager.playCollect(); } catch(e){}
+    }
+
+    function hideConfirmModal() {
+        document.getElementById('confirm-modal').style.display = 'none';
+        try { SoundManager.playCollect(); } catch(e){}
+    }
+
+    function confirmNewGame() {
+        currentLevel = 1;
+        playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
+        availablePoints = 3;
+        totalCoins = 0;
+        helperCount = 0;
+        updateSkillsUI();
+        saveGame();
+        hideConfirmModal();
+        continueGame();
     }
 
     function continueGame() {
