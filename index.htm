@@ -2733,7 +2733,7 @@
                     b2.cfg.vel.y += 0.06;
                     if (b1.mesh === player || b2.mesh === player) cameraShake = 0.4;
 
-                    const baseDamage = 1 + (relVel * 4);
+                    const baseDamage = (1 + (relVel * 4)) / 3;
 
                     let damage1 = baseDamage;
                     let damage2 = baseDamage;
@@ -3004,7 +3004,7 @@
             const spinner = obj.children[0];
 
             if (!c.isFallen) {
-                let passiveDecay = (obj === player ? 0.015 : 0.02);
+                let passiveDecay = (obj === player ? 0.015 : 0.02) / 3;
                 // Impacto da resistência na stamina reduzido para 1% por ponto
                 if (obj === player) passiveDecay *= Math.max(0.1, 1 - playerSkills.resistencia * 0.01);
 
@@ -3073,13 +3073,17 @@
         helperConfigs.forEach(hc => updateAI(hc, true));
 
         if (vortexEffectMesh) {
-            vortexEffectMesh.rotation.y += 0.4;
-            const count = vortexEffectMesh.children.length;
-            vortexEffectMesh.children.forEach((child, i) => {
-                const t = Date.now() * 0.01;
-                child.position.y = (i / count) * 7.0 + Math.sin(t + i) * 0.3;
-                const s = 1.0 + Math.sin(t * 0.5 + i) * 0.15;
-                child.scale.set(s, s, s);
+            vortexEffectMesh.children.forEach((p) => {
+                const d = p.userData;
+                if (!d) return;
+                d.angle += d.speed;
+                const rOsc = d.radius + Math.sin(Date.now() * 0.005 + d.height * 2) * 0.3;
+                p.position.x = Math.cos(d.angle) * rOsc;
+                p.position.z = Math.sin(d.angle) * rOsc;
+                p.position.y = d.height + Math.sin(Date.now() * 0.003 + d.angle) * 0.2;
+
+                const s = 0.6 + Math.sin(Date.now() * 0.01 + d.height) * 0.4;
+                p.scale.set(s, s, s);
             });
         }
 
@@ -3317,23 +3321,36 @@
 
         vortexEffectMesh = new THREE.Group();
 
-        const ringMat = new THREE.MeshBasicMaterial({
+        const partGeo = new THREE.SphereGeometry(0.3, 8, 8);
+        const partMat = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
             opacity: 0.3,
-            side: THREE.DoubleSide,
             blending: THREE.AdditiveBlending
         });
 
-        const numRings = 20;
-        for (let i = 0; i < numRings; i++) {
-            const r = 1.2 + (i / numRings) * 3.5;
-            const ringGeo = new THREE.TorusGeometry(r, 0.06, 8, 40);
-            const ring = new THREE.Mesh(ringGeo, ringMat);
-            ring.position.y = (i / numRings) * 7.0;
-            ring.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.3;
-            ring.rotation.z = Math.random() * Math.PI;
-            vortexEffectMesh.add(ring);
+        const numParticles = 180;
+        for (let i = 0; i < numParticles; i++) {
+            const particle = new THREE.Mesh(partGeo, partMat);
+
+            const h = Math.random() * 8.5;
+            const r = 0.8 + (h / 8.5) * 4.5;
+            const angle = Math.random() * Math.PI * 2;
+
+            particle.position.set(
+                Math.cos(angle) * r,
+                h,
+                Math.sin(angle) * r
+            );
+
+            particle.userData = {
+                angle: angle,
+                radius: r,
+                height: h,
+                speed: 0.08 + Math.random() * 0.12
+            };
+
+            vortexEffectMesh.add(particle);
         }
 
         player.add(vortexEffectMesh);
