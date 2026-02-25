@@ -497,6 +497,58 @@
             transform: scale(0.95);
         }
 
+        /* Camera Slider */
+        .camera-slider-container {
+            display: none;
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            width: 50px;
+            height: 180px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px 0;
+            z-index: 200;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            transition: all 0.3s;
+            box-sizing: border-box;
+        }
+        .slider-icon {
+            color: white;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            user-select: none;
+            pointer-events: none;
+        }
+        .slider-track {
+            position: relative;
+            width: 8px;
+            flex: 1;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+        .slider-handle {
+            position: absolute;
+            left: 50%;
+            bottom: 0%; /* 0% means zoom 0.5, 100% means zoom 2.5 */
+            transform: translate(-50%, 50%);
+            width: 24px;
+            height: 24px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 15px var(--primary-glow);
+            border: 2px solid white;
+        }
+
         .footer-controls {
             flex-shrink: 0;
             width: 100%;
@@ -754,8 +806,11 @@
     </div>
 </div>
 
-<div id="camera-toggle" class="camera-btn" onclick="toggleCamera()" title="Alternar Câmera">
-    🎥
+<div id="camera-slider-container" class="camera-slider-container">
+    <div class="slider-icon">🔍</div>
+    <div id="camera-slider-track" class="slider-track">
+        <div id="camera-slider-handle" class="slider-handle"></div>
+    </div>
 </div>
 
 <div id="settings-btn" class="camera-btn" style="right: 20px; left: auto;" onclick="toggleSettings()" title="Configurações">
@@ -906,10 +961,18 @@
 </div>
 
 <div id="ui">
-    <div id="vortex-ui" style="position: absolute; top: 20px; left: 20px; width: 180px; display: none; pointer-events: none; flex-direction: column; align-items: flex-start; z-index: 100;">
-        <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold; color: #f1c40f; text-shadow: 0 0 5px rgba(0,0,0,0.8);">ESPECIAL VÓRTICE</div>
-        <div class="stat-bar" style="border-color: rgba(241, 196, 15, 0.4); background: rgba(0,0,0,0.3); height: 10px;">
-            <div id="vortex-bar-fill" class="fill" style="width: 0%; background: linear-gradient(90deg, #f1c40f, #ffeb3b); box-shadow: 0 0 15px #f1c40f;"></div>
+    <div id="vortex-ui" style="position: absolute; top: 20px; left: 20px; width: 200px; display: none; pointer-events: none; flex-direction: column; align-items: flex-start; z-index: 100; gap: 8px;">
+        <div style="width: 100%;">
+            <div style="font-size: 11px; margin-bottom: 3px; letter-spacing: 1px; font-weight: bold; color: #00d2ff; text-shadow: 0 0 5px rgba(0,0,0,0.8);">ROTAÇÃO</div>
+            <div class="stat-bar" style="border-color: rgba(0, 210, 255, 0.4); background: rgba(0,0,0,0.3); height: 14px; margin-bottom: 0;">
+                <div id="player-stamina-fixed" class="fill" style="width: 100%; background: #00d2ff; box-shadow: 0 0 15px #00d2ff;"></div>
+            </div>
+        </div>
+        <div style="width: 100%;">
+            <div style="font-size: 10px; margin-bottom: 2px; letter-spacing: 1px; font-weight: bold; color: #f1c40f; text-shadow: 0 0 5px rgba(0,0,0,0.8);">ESPECIAL VÓRTICE</div>
+            <div class="stat-bar" style="border-color: rgba(241, 196, 15, 0.4); background: rgba(0,0,0,0.3); height: 10px; margin-bottom: 0;">
+                <div id="vortex-bar-fill" class="fill" style="width: 0%; background: linear-gradient(90deg, #f1c40f, #ffeb3b); box-shadow: 0 0 15px #f1c40f;"></div>
+            </div>
         </div>
     </div>
     <div id="player-ui" class="floating-ui">
@@ -1556,7 +1619,7 @@
         // Hide/Show other game UI
         const display = isPaused ? 'none' : 'flex';
         const displayUI = isPaused ? 'none' : 'block';
-        document.getElementById('camera-toggle').style.display = display;
+        document.getElementById('camera-slider-container').style.display = display;
         document.getElementById('settings-btn').style.display = display;
         document.getElementById('mobile-controls').style.display = display;
         document.getElementById('ui').style.display = displayUI;
@@ -1564,9 +1627,61 @@
         try { SoundManager.playCollect(); } catch(e){}
     }
 
-    function toggleCamera() {
-        camDistIndex = (camDistIndex + 1) % camDistPresets.length;
-        try { SoundManager.playCollect(); } catch(e){}
+    function initCameraSlider() {
+        const container = document.getElementById('camera-slider-container');
+        const track = document.getElementById('camera-slider-track');
+        const handle = document.getElementById('camera-slider-handle');
+        let isDragging = false;
+
+        const updateSliderFromZoom = () => {
+            const range = 2.5 - 0.5;
+            const pct = (cameraZoom - 0.5) / range;
+            handle.style.bottom = (pct * 100) + '%';
+        };
+
+        const updateZoomFromEvent = (e) => {
+            const rect = track.getBoundingClientRect();
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            let pct = 1 - ((clientY - rect.top) / rect.height);
+            pct = THREE.MathUtils.clamp(pct, 0, 1);
+            cameraZoom = 0.5 + pct * (2.5 - 0.5);
+            updateSliderFromZoom();
+        };
+
+        track.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            updateZoomFromEvent(e);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) updateZoomFromEvent(e);
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        track.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            updateZoomFromEvent(e);
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (e) => {
+            if (isDragging) {
+                if (e.cancelable) e.preventDefault();
+                updateZoomFromEvent(e);
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        // Initial sync
+        updateSliderFromZoom();
+
+        // Check for zoom changes from other sources (wheel)
+        setInterval(updateSliderFromZoom, 100);
     }
 
     function initMobileControls() {
@@ -2162,6 +2277,7 @@
         window.addEventListener('keyup', e => keys[e.key] = false);
 
         initMobileControls();
+        initCameraSlider();
         initPreview();
 
         window.addEventListener('wheel', (e) => {
@@ -2450,7 +2566,7 @@
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('ui').style.display = 'block';
         document.getElementById('mobile-controls').style.display = 'flex';
-        document.getElementById('camera-toggle').style.display = 'flex';
+        document.getElementById('camera-slider-container').style.display = 'flex';
         document.getElementById('settings-btn').style.display = 'flex';
         gameStarted = true;
 
@@ -2580,7 +2696,7 @@
         document.getElementById('msg').style.display = 'none';
         document.getElementById('level-ui').style.display = 'none';
         document.getElementById('mobile-controls').style.display = 'none';
-        document.getElementById('camera-toggle').style.display = 'none';
+        document.getElementById('camera-slider-container').style.display = 'none';
         document.getElementById('settings-btn').style.display = 'none';
         document.getElementById('ui').style.display = 'none';
         gameStarted = false;
@@ -2629,7 +2745,7 @@
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
         document.getElementById('mobile-controls').style.display = 'none';
-        document.getElementById('camera-toggle').style.display = 'none';
+        document.getElementById('camera-slider-container').style.display = 'none';
         document.getElementById('settings-btn').style.display = 'none';
         document.getElementById('ui').style.display = 'none';
         gameStarted = false;
@@ -2653,7 +2769,7 @@
         document.getElementById('start-screen').style.display = 'flex';
         document.getElementById('level-ui').style.display = 'none';
         document.getElementById('mobile-controls').style.display = 'none';
-        document.getElementById('camera-toggle').style.display = 'none';
+        document.getElementById('camera-slider-container').style.display = 'none';
         document.getElementById('settings-btn').style.display = 'none';
         document.getElementById('ui').style.display = 'none';
         gameStarted = false;
@@ -3110,7 +3226,7 @@
             vBtn.style.display = (gameStarted && raceActive && vortexCharge >= 100 && !isVortexActive) ? 'flex' : 'none';
         }
 
-        const pBar = document.getElementById('player-stamina');
+        const pBar = document.getElementById('player-stamina-fixed');
         if (pBar) {
             pBar.style.width = pStamina + '%';
             pBar.style.background = pStamina < 30 ? '#ff3300' : '#00d2ff';
@@ -3120,6 +3236,11 @@
         // Atualizar UIs flutuantes
         allBlades.forEach(item => {
             if (item.ui && item.obj) {
+                const isPlayerUI = item.ui.id === 'player-ui';
+                if (isPlayerUI) {
+                    item.ui.style.display = 'none';
+                    return;
+                }
                 const vector = new THREE.Vector3();
                 item.obj.getWorldPosition(vector);
                 vector.y += 2.2;
@@ -3445,7 +3566,7 @@
                 st.innerHTML = win ? winContent : lossContent;
                 st.innerHTML += `<br><button class="main-btn" style="margin-top: 10px; font-size: 1rem; padding: 10px 30px; background: #666; color: #fff;" onclick="backToOptions()">VOLTAR</button>`;
 
-                document.getElementById('camera-toggle').style.display = 'none';
+                document.getElementById('camera-slider-container').style.display = 'none';
                 document.getElementById('settings-btn').style.display = 'none';
                 document.getElementById('mobile-controls').style.display = 'none';
                 document.getElementById('ui').style.display = 'none';
