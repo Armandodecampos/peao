@@ -1102,13 +1102,49 @@
             this.mainGain.gain.value = 0.3;
             this.mainGain.connect(this.ctx.destination);
 
-            this.spinOsc = this.ctx.createOscillator();
-            this.spinOsc.type = 'triangle';
+            // Filtro para suavizar os osciladores
+            this.spinFilter = this.ctx.createBiquadFilter();
+            this.spinFilter.type = 'lowpass';
+            this.spinFilter.frequency.value = 1000;
+            this.spinFilter.connect(this.mainGain);
+
+            this.spinOsc1 = this.ctx.createOscillator();
+            this.spinOsc1.type = 'triangle';
+            this.spinOsc2 = this.ctx.createOscillator();
+            this.spinOsc2.type = 'sawtooth';
+            this.spinOsc2.detune.value = 5;
+
             this.spinGain = this.ctx.createGain();
             this.spinGain.gain.value = 0;
-            this.spinOsc.connect(this.spinGain);
-            this.spinGain.connect(this.mainGain);
-            this.spinOsc.start();
+
+            this.spinOsc1.connect(this.spinGain);
+            this.spinOsc2.connect(this.spinGain);
+            this.spinGain.connect(this.spinFilter);
+
+            this.spinOsc1.start();
+            this.spinOsc2.start();
+
+            // Gerador de Ruído para fricção do ar
+            const bufferSize = this.ctx.sampleRate * 2;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+            this.noiseNode = this.ctx.createBufferSource();
+            this.noiseNode.buffer = buffer;
+            this.noiseNode.loop = true;
+            this.noiseGain = this.ctx.createGain();
+            this.noiseGain.gain.value = 0;
+
+            this.noiseFilter = this.ctx.createBiquadFilter();
+            this.noiseFilter.type = 'bandpass';
+            this.noiseFilter.frequency.value = 1000;
+            this.noiseFilter.Q.value = 1;
+
+            this.noiseNode.connect(this.noiseFilter);
+            this.noiseFilter.connect(this.noiseGain);
+            this.noiseGain.connect(this.mainGain);
+            this.noiseNode.start();
         },
 
         playHit() {
@@ -1219,13 +1255,20 @@
         },
 
         updateSpin(speed) {
-            if (!this.ctx || !this.spinOsc) return;
-            this.spinOsc.frequency.setTargetAtTime(50 + speed * 100, this.ctx.currentTime, 0.1);
-            this.spinGain.gain.setTargetAtTime(Math.min(0.1, speed * 0.03), this.ctx.currentTime, 0.1);
+            if (!this.ctx || !this.spinOsc1) return;
+            const t = this.ctx.currentTime;
+            this.spinOsc1.frequency.setTargetAtTime(60 + speed * 80, t, 0.1);
+            this.spinOsc2.frequency.setTargetAtTime(30 + speed * 40, t, 0.1);
+            this.spinFilter.frequency.setTargetAtTime(200 + speed * 800, t, 0.1);
+            this.spinGain.gain.setTargetAtTime(Math.min(0.08, speed * 0.025), t, 0.1);
+
+            this.noiseFilter.frequency.setTargetAtTime(500 + speed * 1500, t, 0.1);
+            this.noiseGain.gain.setTargetAtTime(Math.min(0.04, speed * 0.015), t, 0.1);
         },
 
         stopSpin() {
             if (this.spinGain) this.spinGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+            if (this.noiseGain) this.noiseGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
         },
 
         playBombLaunch() {
@@ -2329,7 +2372,7 @@
         document.getElementById('settings-btn').style.display = 'flex';
         gameStarted = true;
 
-        startLaunchPhase();
+        startCountdown();
     }
 
     function startLaunchPhase() {
@@ -2347,7 +2390,7 @@
         playerConfig.stamina = Math.max(20, launchPower);
 
         try { SoundManager.playStart(); } catch(e){}
-        startCountdown();
+        raceActive = true;
     }
 
     function startCountdown() {
@@ -2367,7 +2410,7 @@
             } else {
                 clearInterval(timer);
                 overlay.style.display = 'none';
-                raceActive = true;
+                startLaunchPhase();
             }
         }, 1000);
     }
@@ -2392,7 +2435,7 @@
             hc.mesh.rotation.set(0,0,0);
             if (hc.mesh.children[0]) hc.mesh.children[0].rotation.set(0,0,0);
             hc.vel.set(0,0,0);
-            hc.stamina = 100;
+            hc.stamina = Math.random() < 0.8 ? (50 + Math.random() * 50) : (20 + Math.random() * 30);
             hc.isFallen = false;
             hc.hasBomb = false;
             hc.wobble = 0;
@@ -2408,7 +2451,7 @@
             if (e.pivot.children[0]) e.pivot.children[0].rotation.set(0,0,0);
             const c = enemyConfigs[i];
             c.vel.set(0,0,0);
-            c.stamina = 100;
+            c.stamina = Math.random() < 0.8 ? (50 + Math.random() * 50) : (20 + Math.random() * 30);
             c.isFallen = false;
             c.hasBomb = false;
             c.wobble = 0;
@@ -2757,9 +2800,11 @@
         allBlades.push(...enemies.map((e, i) => ({obj: e.pivot, c: enemyConfigs[i], ui: e.ui})));
 
         allBlades.forEach(({obj, c}) => {
-            obj.position.x += c.vel.x;
-            obj.position.y += c.vel.y;
-            obj.position.z += c.vel.z;
+            if (raceActive) {
+                obj.position.x += c.vel.x;
+                obj.position.y += c.vel.y;
+                obj.position.z += c.vel.z;
+            }
 
             // Cálculo do nível do chão dinâmico para evitar clipping de todo o corpo
             const worldUp = new THREE.Vector3(0, 1, 0).applyQuaternion(obj.quaternion);
@@ -2815,15 +2860,17 @@
             obj.lastGroundLevel = currentGroundLevel;
 
             // Gravidade e Colisão com o Chão
-            if (obj.position.y > currentGroundLevel) {
-                c.vel.y -= 0.02;
-            } else {
-                if (c.vel.y < -0.02) {
-                    c.vel.y *= (c.isFallen ? -0.3 : -0.5); // Bounce amortecido
-                    obj.position.y = currentGroundLevel;
+            if (raceActive) {
+                if (obj.position.y > currentGroundLevel) {
+                    c.vel.y -= 0.02;
                 } else {
-                    c.vel.y = 0;
-                    obj.position.y = currentGroundLevel;
+                    if (c.vel.y < -0.02) {
+                        c.vel.y *= (c.isFallen ? -0.3 : -0.5); // Bounce amortecido
+                        obj.position.y = currentGroundLevel;
+                    } else {
+                        c.vel.y = 0;
+                        obj.position.y = currentGroundLevel;
+                    }
                 }
             }
 
@@ -2852,29 +2899,31 @@
 
                 if (raceActive) {
                     c.stamina -= passiveDecay;
+
+                    // Rotação sincronizada com a estabilidade (stamina)
+                    let baseRotSpeed = 3.5;
+                    // Impacto da velocidade na rotação reduzido para 2% por ponto
+                    if (obj === player) baseRotSpeed *= (1 + playerSkills.velocidade * 0.02);
+                    c.rotationSpeed = (c.stamina / 100) * baseRotSpeed;
+                    if (spinner) spinner.rotation.y += c.rotationSpeed;
+
+                    // Wobble natural
+                    const baseWobble = Math.pow(Math.max(0, 1.2 - c.rotationSpeed), 2) * 0.2;
+                    c.hitWobble *= 0.95;
+                    const targetWobble = baseWobble + c.hitWobble;
+                    c.wobble = THREE.MathUtils.lerp(c.wobble, targetWobble, 0.1);
+
+                    const t = Date.now() * 0.01;
+                    const targetRotX = (c.vel.z * 1.2) + Math.sin(t) * c.wobble;
+                    const targetRotZ = (-c.vel.x * 1.2) + Math.cos(t) * c.wobble;
+
+                    obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, targetRotX, 0.15);
+                    obj.rotation.z = THREE.MathUtils.lerp(obj.rotation.z, targetRotZ, 0.15);
+                } else {
+                    c.rotationSpeed = 0;
                 }
 
-                // Rotação sincronizada com a estabilidade (stamina)
-                let baseRotSpeed = 3.5;
-                // Impacto da velocidade na rotação reduzido para 2% por ponto
-                if (obj === player) baseRotSpeed *= (1 + playerSkills.velocidade * 0.02);
-                c.rotationSpeed = (c.stamina / 100) * baseRotSpeed;
-                if (spinner) spinner.rotation.y += c.rotationSpeed;
-
-                // Wobble natural
-                const baseWobble = Math.pow(Math.max(0, 1.2 - c.rotationSpeed), 2) * 0.2;
-                c.hitWobble *= 0.95;
-                const targetWobble = baseWobble + c.hitWobble;
-                c.wobble = THREE.MathUtils.lerp(c.wobble, targetWobble, 0.1);
-
-                const t = Date.now() * 0.01;
-                const targetRotX = (c.vel.z * 1.2) + Math.sin(t) * c.wobble;
-                const targetRotZ = (-c.vel.x * 1.2) + Math.cos(t) * c.wobble;
-
-                obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, targetRotX, 0.15);
-                obj.rotation.z = THREE.MathUtils.lerp(obj.rotation.z, targetRotZ, 0.15);
-
-                if (c.stamina <= 0 || c.wobble > 1.2) {
+                if (raceActive && (c.stamina <= 0 || c.wobble > 1.2)) {
                     c.isFallen = true;
                     if (obj !== player) {
                         totalCoins++;
@@ -2883,25 +2932,26 @@
                 }
             } else {
                 // Queda Dinâmica
-                c.rotationSpeed *= 0.96; // Desaceleração rápida da rotação
-                if (spinner) spinner.rotation.y += c.rotationSpeed;
+                if (raceActive) {
+                    c.rotationSpeed *= 0.96; // Desaceleração rápida da rotação
+                    if (spinner) spinner.rotation.y += c.rotationSpeed;
 
-                // Aumentar o wobble para simular a perda de equilíbrio total
-                c.wobble = THREE.MathUtils.lerp(c.wobble, 1.55, 0.05);
+                    // Aumentar o wobble para simular a perda de equilíbrio total
+                    c.wobble = THREE.MathUtils.lerp(c.wobble, 1.55, 0.05);
 
-                const t = Date.now() * 0.01;
-                // Transição suave para a precessão final de queda
-                const targetRotX = (c.vel.z * 1.1) + Math.sin(t) * c.wobble;
-                const targetRotZ = (-c.vel.x * 1.1) + Math.cos(t) * c.wobble;
+                    const t = Date.now() * 0.01;
+                    // Transição suave para a precessão final de queda
+                    const targetRotX = (c.vel.z * 1.1) + Math.sin(t) * c.wobble;
+                    const targetRotZ = (-c.vel.x * 1.1) + Math.cos(t) * c.wobble;
 
-                obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, targetRotX, 0.1);
-                obj.rotation.z = THREE.MathUtils.lerp(obj.rotation.z, targetRotZ, 0.1);
-
+                    obj.rotation.x = THREE.MathUtils.lerp(obj.rotation.x, targetRotX, 0.1);
+                    obj.rotation.z = THREE.MathUtils.lerp(obj.rotation.z, targetRotZ, 0.1);
+                }
                 // A posição Y é controlada pela colisão com o chão já calculada
             }
         });
 
-        checkCollision();
+        if (raceActive) checkCollision();
 
         // Update AI
         enemyConfigs.forEach(c => updateAI(c, false));
