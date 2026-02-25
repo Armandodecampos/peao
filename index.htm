@@ -949,9 +949,12 @@
     const textureLoader = new THREE.TextureLoader();
 
     let scene, camera, renderer, player, enemies = [];
+    let sunLight;
     let wallUniforms = {
         uPlayerPos: { value: new THREE.Vector3() },
-        uCamPos: { value: new THREE.Vector3() }
+        uCamPos: { value: new THREE.Vector3() },
+        uDirToPlayer: { value: new THREE.Vector3() },
+        uDistCamToPlayer: { value: 0 }
     };
     let previewScene, previewCamera, previewRenderer, previewBlade;
     let currentShapeIndex = 0;
@@ -1533,7 +1536,7 @@
 
         previewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         previewRenderer.setSize(180, 180);
-        previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         container.appendChild(previewRenderer.domElement);
 
         previewScene.add(new THREE.AmbientLight(0xffffff, 0.8));
@@ -1577,6 +1580,10 @@
     }
 
     function updateSkillsUI() {
+        if (sunLight) {
+            sunLight.visible = (currentScenario === 1);
+            sunLight.castShadow = (currentScenario === 1);
+        }
         document.getElementById('available-points').innerText = availablePoints;
         const modalPoints = document.getElementById('available-points-modal');
         if (modalPoints) modalPoints.innerText = availablePoints;
@@ -1710,7 +1717,7 @@
             antialias: false,
             powerPreference: "high-performance"
         });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -1718,11 +1725,11 @@
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
         sunLight.position.set(20, 80, 20);
         sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.mapSize.width = 1024;
+        sunLight.shadow.mapSize.height = 1024;
         sunLight.shadow.camera.left = -150;
         sunLight.shadow.camera.right = 150;
         sunLight.shadow.camera.top = 150;
@@ -1767,7 +1774,7 @@
         arenaTexture.wrapS = arenaTexture.wrapT = THREE.RepeatWrapping;
         arenaTexture.repeat.set(4, 4);
 
-        const arenaFloorGeo = new THREE.CylinderGeometry(50, 50, 2, 128);
+        const arenaFloorGeo = new THREE.CylinderGeometry(50, 50, 2, 32);
         const arenaFloorMat = new THREE.MeshPhongMaterial({ color: 0xffffff, map: arenaTexture, shininess: 10 });
         const woodTexture = textureLoader.load('https://dl.dropbox.com/scl/fi/3q729rojhlbzb1nfbj1t1/textura-de-ch-o-de-madeira.png?rlkey=r8u1iql8v9okm8qgxc5vr30j7&st=pb8g6qeh&dl=1');
         woodTexture.wrapS = woodTexture.wrapT = THREE.RepeatWrapping;
@@ -1792,7 +1799,7 @@
         const thickWallGeo = new THREE.ExtrudeGeometry(wallShape, {
             depth: wallHeight,
             bevelEnabled: false,
-            curveSegments: 64
+            curveSegments: 12
         });
         thickWallGeo.rotateX(-Math.PI / 2);
 
@@ -1803,6 +1810,9 @@
             material.onBeforeCompile = (shader) => {
                 shader.uniforms.uPlayerPos = wallUniforms.uPlayerPos;
                 shader.uniforms.uCamPos = wallUniforms.uCamPos;
+                shader.uniforms.uDirToPlayer = wallUniforms.uDirToPlayer;
+                shader.uniforms.uDistCamToPlayer = wallUniforms.uDistCamToPlayer;
+
                 shader.vertexShader = `
                     varying vec3 vWorldPos;
                 ` + shader.vertexShader.replace(
@@ -1816,18 +1826,20 @@
                     varying vec3 vWorldPos;
                     uniform vec3 uPlayerPos;
                     uniform vec3 uCamPos;
+                    uniform vec3 uDirToPlayer;
+                    uniform float uDistCamToPlayer;
                 ` + shader.fragmentShader.replace(
                     '#include <dithering_fragment>',
                     `
                     #include <dithering_fragment>
-                    vec3 dirToPlayer = normalize(uPlayerPos - uCamPos);
-                    vec3 dirToFrag = normalize(vWorldPos - uCamPos);
-                    float dotProd = dot(dirToPlayer, dirToFrag);
-                    float distToLine = length(cross(dirToPlayer, vWorldPos - uCamPos));
-                    float distCamToPlayer = distance(uCamPos, uPlayerPos);
-                    float distCamToFrag = distance(uCamPos, vWorldPos);
+                    vec3 vToFrag = vWorldPos - uCamPos;
+                    float distCamToFrag = length(vToFrag);
+                    vec3 dirToFrag = vToFrag / distCamToFrag;
+                    float dotProd = dot(uDirToPlayer, dirToFrag);
 
-                    if (dotProd > 0.9 && distCamToFrag < distCamToPlayer) {
+                    if (dotProd > 0.9 && distCamToFrag < uDistCamToPlayer) {
+                        float sinTheta = sqrt(1.0 - dotProd * dotProd);
+                        float distToLine = distCamToFrag * sinTheta;
                         float holeSize = 8.0;
                         float softness = 4.0;
                         float alphaFactor = smoothstep(holeSize, holeSize + softness, distToLine);
@@ -1874,7 +1886,7 @@
         });
 
         // --- CENÁRIO 2 (DOMO E LUZES) ---
-        const domeGeo = new THREE.SphereGeometry(150, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+        const domeGeo = new THREE.SphereGeometry(150, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
         const domeMat = new THREE.MeshPhongMaterial({
             color: 0x050515,
             side: THREE.BackSide,
@@ -1886,7 +1898,7 @@
         scenario2Group.add(dome);
 
         // Floor for Scenario 2
-        const s2FloorGeo = new THREE.CircleGeometry(80, 128);
+        const s2FloorGeo = new THREE.CircleGeometry(80, 32);
         const s2FloorMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.1 });
         const s2Floor = new THREE.Mesh(s2FloorGeo, s2FloorMat);
         s2Floor.rotation.x = -Math.PI/2;
@@ -1895,7 +1907,7 @@
         scenario2Group.add(s2Floor);
 
         // Central Arena for Scenario 2 (Raised Cylinder)
-        const s2ArenaGeo = new THREE.CylinderGeometry(50, 50, 2, 128);
+        const s2ArenaGeo = new THREE.CylinderGeometry(50, 50, 2, 32);
         const s2Arena = new THREE.Mesh(s2ArenaGeo, s2FloorMat);
         s2Arena.position.y = 1.0;
         s2Arena.receiveShadow = true;
@@ -1920,7 +1932,7 @@
             scenario2Group.add(spotLight.target);
 
             // Visual Beam
-            const beamGeo = new THREE.CylinderGeometry(0.2, 10, 200, 32, 1, true);
+            const beamGeo = new THREE.CylinderGeometry(0.2, 10, 200, 12, 1, true);
             beamGeo.translate(0, 100, 0);
             beamGeo.rotateX(Math.PI / 2);
             const beamMat = new THREE.MeshBasicMaterial({
@@ -2564,6 +2576,10 @@
         if (player && wallUniforms) {
             wallUniforms.uPlayerPos.value.copy(player.position);
             wallUniforms.uCamPos.value.copy(camera.position);
+
+            const dir = new THREE.Vector3().subVectors(player.position, camera.position);
+            wallUniforms.uDistCamToPlayer.value = dir.length();
+            wallUniforms.uDirToPlayer.value.copy(dir.normalize());
         }
 
         if (isPaused) {
