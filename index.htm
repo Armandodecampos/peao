@@ -1359,6 +1359,8 @@
         mainGain: null,
         spinOsc: null,
         spinGain: null,
+        bgMusic: null,
+        musicUrl: "https://dl.dropbox.com/scl/fi/5cc7uboctn12jf6n29699/idoberg-metal-bass-amp-drums-loop-413373.mp3?rlkey=wi9djf4dl6c6zefqwa96p3rqz&st=81chif95&dl=1",
 
         init() {
             if (this.ctx) {
@@ -1520,6 +1522,35 @@
                 osc.start(this.ctx.currentTime + i*0.15);
                 osc.stop(this.ctx.currentTime + i*0.15 + 0.5);
             });
+        },
+
+        initMusic() {
+            if (this.bgMusic) return;
+            this.bgMusic = new Audio(this.musicUrl);
+            this.bgMusic.loop = true;
+            this.bgMusic.volume = 0.4;
+        },
+
+        playMusic() {
+            this.initMusic();
+            this.bgMusic.play().catch(e => console.log("Music play blocked", e));
+        },
+
+        stopMusic() {
+            if (this.bgMusic) {
+                this.bgMusic.pause();
+                this.bgMusic.currentTime = 0;
+            }
+        },
+
+        speak(text) {
+            if (!window.speechSynthesis) return;
+            // Cancel current speaking
+            window.speechSynthesis.cancel();
+            const ut = new SpeechSynthesisUtterance(text);
+            ut.lang = 'pt-BR';
+            ut.rate = 1.2;
+            window.speechSynthesis.speak(ut);
         },
 
         updateSpin(speed) {
@@ -2624,6 +2655,7 @@
     }
 
     function startGame() {
+        try { SoundManager.playCollect(); } catch(e){}
         saveGame();
         document.getElementById('skills-modal').style.display = 'none';
         // Agora startGame apenas inicia o jogo no nível atual definido.
@@ -2768,7 +2800,10 @@
         // Stamina do player é definida pelo poder do lançamento (mínimo de 20 para jogabilidade)
         playerConfig.stamina = Math.max(20, launchPower);
 
-        try { SoundManager.playStart(); } catch(e){}
+        try {
+            SoundManager.playStart();
+            SoundManager.playMusic();
+        } catch(e){}
         raceActive = true;
     }
 
@@ -2779,13 +2814,19 @@
 
         let count = 3;
         overlay.innerText = count;
+        try { SoundManager.speak("Três"); } catch(e){}
 
         const timer = setInterval(() => {
             count--;
             if (count > 0) {
                 overlay.innerText = count;
+                try {
+                    if (count === 2) SoundManager.speak("Dois");
+                    if (count === 1) SoundManager.speak("Um");
+                } catch(e){}
             } else if (count === 0) {
                 overlay.innerText = "JÁ!";
+                try { SoundManager.speak("Já!"); } catch(e){}
             } else {
                 clearInterval(timer);
                 overlay.style.display = 'none';
@@ -2869,6 +2910,7 @@
     }
 
     function showMainMenu() {
+        try { SoundManager.stopMusic(); } catch(e){}
         isPaused = false;
         document.getElementById('settings-menu').style.display = 'none';
         document.getElementById('skills-modal').style.display = 'none';
@@ -2902,6 +2944,7 @@
     }
 
     function confirmNewGame() {
+        try { SoundManager.playCollect(); } catch(e){}
         currentLevel = 1;
         playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
         availablePoints = 3;
@@ -2920,6 +2963,7 @@
     }
 
     function backToOptions() {
+        try { SoundManager.stopMusic(); } catch(e){}
         isPaused = false;
         document.getElementById('settings-menu').style.display = 'none';
         document.getElementById('skills-modal').style.display = 'none';
@@ -2945,6 +2989,7 @@
     }
 
     function nextLevel() {
+        try { SoundManager.playCollect(); } catch(e){}
         currentLevel++;
         availablePoints++;
         updateSkillsUI();
