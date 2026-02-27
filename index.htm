@@ -919,6 +919,7 @@
     <div class="start-container" style="justify-content: center;">
         <div class="main-panel glass" style="max-width: 400px; padding: 40px; gap: 20px; align-items: center; justify-content: center;">
             <button id="music-toggle-btn" class="main-btn orbitron" style="width: 100%; background: var(--accent);" onclick="toggleMusic()">MÚSICA: LIGADA</button>
+            <button id="music-next-btn" class="main-btn orbitron" style="width: 100%; font-size: 1rem;" onclick="nextMusic()">TROCAR MÚSICA</button>
             <button id="controls-btn" class="main-btn orbitron" style="width: 100%;" onclick="openControlsModal('config-modal')">CONTROLE</button>
             <button id="how-to-play-btn" class="main-btn orbitron" style="width: 100%;" onclick="openHowToPlayModal('config-modal')">COMO JOGAR</button>
             <button id="config-back-btn" class="main-btn orbitron" style="width: 100%; background: #666; color: white;" onclick="closeConfigModal()">VOLTAR</button>
@@ -1365,13 +1366,18 @@
         vortexGain: null,
         bgMusic: null,
         isMusicEnabled: true,
-        musicUrl: "https://dl.dropbox.com/scl/fi/5cc7uboctn12jf6n29699/idoberg-metal-bass-amp-drums-loop-413373.mp3?rlkey=wi9djf4dl6c6zefqwa96p3rqz&st=81chif95&dl=1",
+        musicTracks: [
+            "https://dl.dropbox.com/scl/fi/5cc7uboctn12jf6n29699/idoberg-metal-bass-amp-drums-loop-413373.mp3?rlkey=wi9djf4dl6c6zefqwa96p3rqz&st=81chif95&dl=1",
+            "https://dl.dropbox.com/scl/fi/3ui2zg2u70vtbtrartyzg/freesound_community-groove-metal-break-8-22279.mp3?rlkey=ifviwup9nyni478c8hbw6dszw&st=vs3fvni0&dl=1"
+        ],
+        currentTrackIndex: 0,
 
         init() {
             if (this.ctx) {
                 if (this.ctx.state === 'suspended') this.ctx.resume();
                 return;
             }
+            this.currentTrackIndex = Math.floor(Math.random() * this.musicTracks.length);
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
             this.mainGain = this.ctx.createGain();
             this.mainGain.gain.value = 0.4;
@@ -1461,7 +1467,7 @@
             osc.type = 'sine';
             osc.frequency.setValueAtTime(400, t);
             osc.frequency.exponentialRampToValueAtTime(800, t + 0.1);
-            gain.gain.setValueAtTime(0.1, t);
+            gain.gain.setValueAtTime(0.3, t);
             gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
             osc.connect(gain);
             gain.connect(this.mainGain);
@@ -1562,9 +1568,21 @@
 
         initMusic() {
             if (this.bgMusic) return;
-            this.bgMusic = new Audio(this.musicUrl);
+            this.bgMusic = new Audio(this.musicTracks[this.currentTrackIndex]);
             this.bgMusic.loop = true;
             this.bgMusic.volume = 0.1;
+        },
+
+        nextMusic() {
+            const wasPlaying = this.bgMusic && !this.bgMusic.paused;
+            if (this.bgMusic) {
+                this.bgMusic.pause();
+                this.bgMusic = null;
+            }
+            this.currentTrackIndex = (this.currentTrackIndex + 1) % this.musicTracks.length;
+            this.initMusic();
+            if (wasPlaying) this.playMusic();
+            return this.currentTrackIndex;
         },
 
         playMusic() {
@@ -2014,6 +2032,16 @@
             btn.innerText = `COMPRAR (${helperCount})`;
             btn.disabled = totalCoins < 5;
             btn.style.opacity = totalCoins < 5 ? "0.5" : "1";
+        }
+        try { SoundManager.playButtonSound(); } catch(e){}
+    }
+
+    function nextMusic() {
+        const index = SoundManager.nextMusic();
+        const btn = document.getElementById('music-next-btn');
+        if (btn) {
+            btn.innerText = `MÚSICA: ${index + 1} / ${SoundManager.musicTracks.length}`;
+            setTimeout(() => { btn.innerText = "TROCAR MÚSICA"; }, 2000);
         }
         try { SoundManager.playButtonSound(); } catch(e){}
     }
