@@ -918,6 +918,7 @@
     </div>
     <div class="start-container" style="justify-content: center;">
         <div class="main-panel glass" style="max-width: 400px; padding: 40px; gap: 20px; align-items: center; justify-content: center;">
+            <button id="music-toggle-btn" class="main-btn orbitron" style="width: 100%; background: var(--accent);" onclick="toggleMusic()">MÚSICA: LIGADA</button>
             <button id="controls-btn" class="main-btn orbitron" style="width: 100%;" onclick="openControlsModal('config-modal')">CONTROLE</button>
             <button id="how-to-play-btn" class="main-btn orbitron" style="width: 100%;" onclick="openHowToPlayModal('config-modal')">COMO JOGAR</button>
             <button id="config-back-btn" class="main-btn orbitron" style="width: 100%; background: #666; color: white;" onclick="closeConfigModal()">VOLTAR</button>
@@ -1025,6 +1026,7 @@
     </div>
     <div class="footer-controls" style="flex-direction: column; gap: 10px; align-items: center;">
         <button id="btn-start-battle" class="main-btn orbitron" onclick="startGame()">INICIAR</button>
+        <button id="config-btn-start" class="main-btn orbitron" style="background: var(--accent); font-size: 1rem; padding: 10px 40px;" onclick="openConfigModal('start-screen')">CONFIGURAÇÕES</button>
         <button class="main-btn orbitron" style="background: #e74c3c; color: white; font-size: 1rem; padding: 10px 40px;" onclick="showMainMenu()">SAIR DO JOGO</button>
     </div>
 </div>
@@ -1360,6 +1362,7 @@
         spinOsc: null,
         spinGain: null,
         bgMusic: null,
+        isMusicEnabled: true,
         musicUrl: "https://dl.dropbox.com/scl/fi/5cc7uboctn12jf6n29699/idoberg-metal-bass-amp-drums-loop-413373.mp3?rlkey=wi9djf4dl6c6zefqwa96p3rqz&st=81chif95&dl=1",
 
         init() {
@@ -1369,7 +1372,7 @@
             }
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
             this.mainGain = this.ctx.createGain();
-            this.mainGain.gain.value = 0.3;
+            this.mainGain.gain.value = 0.4;
             this.mainGain.connect(this.ctx.destination);
 
             // Filtro para suavizar os osciladores
@@ -1446,6 +1449,37 @@
             osc1.stop(t + 0.15);
             osc2.start(t);
             osc2.stop(t + 0.1);
+        },
+
+        playButtonSound() {
+            if (!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, t);
+            osc.frequency.exponentialRampToValueAtTime(800, t + 0.1);
+            gain.gain.setValueAtTime(0.1, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+            osc.connect(gain);
+            gain.connect(this.mainGain);
+            osc.start(t);
+            osc.stop(t + 0.1);
+        },
+
+        playBeep(freq = 440, duration = 0.1) {
+            if (!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, t);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
+            osc.connect(gain);
+            gain.connect(this.mainGain);
+            osc.start(t);
+            osc.stop(t + duration);
         },
 
         playStart() {
@@ -1528,10 +1562,11 @@
             if (this.bgMusic) return;
             this.bgMusic = new Audio(this.musicUrl);
             this.bgMusic.loop = true;
-            this.bgMusic.volume = 0.4;
+            this.bgMusic.volume = 0.1;
         },
 
         playMusic() {
+            if (!this.isMusicEnabled) return;
             this.initMusic();
             this.bgMusic.play().catch(e => console.log("Music play blocked", e));
         },
@@ -1543,6 +1578,20 @@
             }
         },
 
+        setMusicVolume(vol) {
+            if (this.bgMusic) this.bgMusic.volume = vol;
+        },
+
+        toggleMusic() {
+            this.isMusicEnabled = !this.isMusicEnabled;
+            if (this.isMusicEnabled) {
+                this.playMusic();
+            } else {
+                this.stopMusic();
+            }
+            return this.isMusicEnabled;
+        },
+
         speak(text) {
             if (!window.speechSynthesis) return;
             // Cancel current speaking
@@ -1550,6 +1599,12 @@
             const ut = new SpeechSynthesisUtterance(text);
             ut.lang = 'pt-BR';
             ut.rate = 1.2;
+
+            // Tentativa de selecionar uma voz masculina em Português
+            const voices = window.speechSynthesis.getVoices();
+            const masculinePT = voices.find(v => v.lang.includes('pt') && (v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('guilherme') || v.name.toLowerCase().includes('felipe') || v.name.toLowerCase().includes('male')));
+            if (masculinePT) ut.voice = masculinePT;
+
             window.speechSynthesis.speak(ut);
         },
 
@@ -1753,39 +1808,39 @@
         document.getElementById('main-menu').style.display = 'none';
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('settings-menu').style.display = 'none';
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function closeConfigModal() {
         document.getElementById('config-modal').style.display = 'none';
         document.getElementById(previousMainMenu).style.display = 'flex';
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function openControlsModal(fromId) {
         previousConfigModal = fromId;
         document.getElementById('controls-modal').style.display = 'flex';
         if (fromId) document.getElementById(fromId).style.display = 'none';
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function closeControlsModal() {
         document.getElementById('controls-modal').style.display = 'none';
         if (previousConfigModal) document.getElementById(previousConfigModal).style.display = 'flex';
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function openHowToPlayModal(fromId) {
         previousConfigModal = fromId;
         document.getElementById('how-to-play-modal').style.display = 'flex';
         if (fromId) document.getElementById(fromId).style.display = 'none';
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function closeHowToPlayModal() {
         document.getElementById('how-to-play-modal').style.display = 'none';
         if (previousConfigModal) document.getElementById(previousConfigModal).style.display = 'flex';
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function toggleSkillsModal(show) {
@@ -1794,7 +1849,7 @@
         modal.style.display = show ? 'flex' : 'none';
         document.getElementById('top-stats-bar').style.visibility = show ? 'hidden' : 'visible';
         if (show) updateSkillsUI();
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function toggleShopModal(show) {
@@ -1809,7 +1864,7 @@
             btn.disabled = totalCoins < 5;
             btn.style.opacity = totalCoins < 5 ? "0.5" : "1";
         }
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function buyHelper() {
@@ -1819,7 +1874,7 @@
             updateSkillsUI();
             toggleShopModal(true);
             saveGame();
-            try { SoundManager.playCollect(); } catch(e){}
+            try { SoundManager.playButtonSound(); } catch(e){}
         }
     }
 
@@ -1836,7 +1891,7 @@
         document.getElementById('mobile-controls').style.display = display;
         document.getElementById('ui').style.display = displayUI;
 
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function initCameraSlider() {
@@ -2065,7 +2120,7 @@
         currentShapeIndex = (currentShapeIndex + dir + shapeKeys.length) % shapeKeys.length;
         updatePreview();
         saveGame();
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function updateSkillsUI() {
@@ -2117,7 +2172,7 @@
         updateSkillsUI();
         saveGame();
         setupScenarios();
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function setupScenarios() {
@@ -2135,6 +2190,15 @@
         }
     }
 
+    function toggleMusic() {
+        const enabled = SoundManager.toggleMusic();
+        const btn = document.getElementById('music-toggle-btn');
+        if (btn) {
+            btn.innerText = enabled ? "MÚSICA: LIGADA" : "MÚSICA: DESLIGADA";
+        }
+        try { SoundManager.playButtonSound(); } catch(e){}
+    }
+
     function modifySkill(skill, delta) {
         if (delta > 0 && availablePoints > 0) {
             playerSkills[skill]++;
@@ -2145,7 +2209,7 @@
         }
         updateSkillsUI();
         saveGame();
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function updatePreviewColor() {
@@ -2655,7 +2719,7 @@
     }
 
     function startGame() {
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
         saveGame();
         document.getElementById('skills-modal').style.display = 'none';
         // Agora startGame apenas inicia o jogo no nível atual definido.
@@ -2791,7 +2855,7 @@
         launchPower = 0;
         launchDirection = 1;
         document.getElementById('launch-overlay').style.display = 'flex';
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function launchBlade() {
@@ -2802,6 +2866,7 @@
 
         try {
             SoundManager.playStart();
+            SoundManager.setMusicVolume(0.4);
             SoundManager.playMusic();
         } catch(e){}
         raceActive = true;
@@ -2814,19 +2879,20 @@
 
         let count = 3;
         overlay.innerText = count;
-        try { SoundManager.speak("Três"); } catch(e){}
+        try {
+            SoundManager.playBeep(440, 0.1);
+            SoundManager.speak("Três");
+        } catch(e){}
 
         const timer = setInterval(() => {
             count--;
             if (count > 0) {
                 overlay.innerText = count;
                 try {
+                    SoundManager.playBeep(440, 0.1);
                     if (count === 2) SoundManager.speak("Dois");
                     if (count === 1) SoundManager.speak("Um");
                 } catch(e){}
-            } else if (count === 0) {
-                overlay.innerText = "JÁ!";
-                try { SoundManager.speak("Já!"); } catch(e){}
             } else {
                 clearInterval(timer);
                 overlay.style.display = 'none';
@@ -2910,7 +2976,11 @@
     }
 
     function showMainMenu() {
-        try { SoundManager.stopMusic(); } catch(e){}
+        try {
+            SoundManager.setMusicVolume(0.1);
+            SoundManager.playMusic();
+            SoundManager.playButtonSound();
+        } catch(e){}
         isPaused = false;
         document.getElementById('settings-menu').style.display = 'none';
         document.getElementById('skills-modal').style.display = 'none';
@@ -2935,16 +3005,16 @@
 
     function startNewGame() {
         document.getElementById('confirm-modal').style.display = 'flex';
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function hideConfirmModal() {
         document.getElementById('confirm-modal').style.display = 'none';
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function confirmNewGame() {
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
         currentLevel = 1;
         playerSkills = { forca: 0, velocidade: 0, resistencia: 0 };
         availablePoints = 3;
@@ -2957,13 +3027,17 @@
     }
 
     function continueGame() {
+        try { SoundManager.playButtonSound(); } catch(e){}
         document.getElementById('main-menu').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         updateSkillsUI();
     }
 
     function backToOptions() {
-        try { SoundManager.stopMusic(); } catch(e){}
+        try {
+            SoundManager.setMusicVolume(0.1);
+            SoundManager.playButtonSound();
+        } catch(e){}
         isPaused = false;
         document.getElementById('settings-menu').style.display = 'none';
         document.getElementById('skills-modal').style.display = 'none';
@@ -2989,7 +3063,7 @@
     }
 
     function nextLevel() {
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
         currentLevel++;
         availablePoints++;
         updateSkillsUI();
@@ -3660,7 +3734,7 @@
         createVortexEffect();
 
         // Som de ativação
-        try { SoundManager.playCollect(); } catch(e){}
+        try { SoundManager.playButtonSound(); } catch(e){}
 
         // Timer de 5 segundos
         if (vortexTimeout) clearTimeout(vortexTimeout);
