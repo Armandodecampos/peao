@@ -1639,6 +1639,56 @@
             gain.connect(this.mainGain);
             osc.start(t);
             osc.stop(t + 0.3);
+        },
+
+        playVortex() {
+            if (!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, t);
+            osc.frequency.exponentialRampToValueAtTime(800, t + 0.6);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+            osc.connect(gain);
+            gain.connect(this.mainGain);
+            osc.start(t);
+            osc.stop(t + 0.6);
+        },
+
+        playExplosion() {
+            if (!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(150, t);
+            osc.frequency.exponentialRampToValueAtTime(40, t + 0.6);
+            gain.gain.setValueAtTime(0.5, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+            osc.connect(gain);
+            gain.connect(this.mainGain);
+            osc.start(t);
+            osc.stop(t + 0.6);
+
+            const bufferSize = this.ctx.sampleRate * 0.6;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const noiseGain = this.ctx.createGain();
+            const noiseFilter = this.ctx.createBiquadFilter();
+            noiseFilter.type = 'lowpass';
+            noiseFilter.frequency.setValueAtTime(1000, t);
+            noiseFilter.frequency.exponentialRampToValueAtTime(100, t + 0.6);
+            noiseGain.gain.setValueAtTime(0.4, t);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(this.mainGain);
+            noise.start(t);
         }
     };
 
@@ -1762,7 +1812,7 @@
         });
 
         cameraShake = 0.7;
-        try { SoundManager.playHit(); } catch(e){}
+        try { SoundManager.playExplosion(); } catch(e){}
     }
 
     class Bomb {
@@ -2881,7 +2931,6 @@
         overlay.innerText = count;
         try {
             SoundManager.playBeep(440, 0.1);
-            SoundManager.speak("Três");
         } catch(e){}
 
         const timer = setInterval(() => {
@@ -2890,8 +2939,6 @@
                 overlay.innerText = count;
                 try {
                     SoundManager.playBeep(440, 0.1);
-                    if (count === 2) SoundManager.speak("Dois");
-                    if (count === 1) SoundManager.speak("Um");
                 } catch(e){}
             } else {
                 clearInterval(timer);
@@ -3734,7 +3781,7 @@
         createVortexEffect();
 
         // Som de ativação
-        try { SoundManager.playButtonSound(); } catch(e){}
+        try { SoundManager.playVortex(); } catch(e){}
 
         // Timer de 5 segundos
         if (vortexTimeout) clearTimeout(vortexTimeout);
