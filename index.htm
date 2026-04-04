@@ -11,8 +11,8 @@
             --primary: #f1c40f;
             --primary-glow: rgba(241, 196, 15, 0.5);
             --accent: #e67e22;
-            --glass: rgba(255, 255, 255, 0.1);
-            --glass-border: rgba(255, 255, 255, 0.2);
+            --glass: #222222;
+            --glass-border: #555555;
             --glass-deep: rgba(0, 0, 0, 0.6);
         }
 
@@ -347,7 +347,6 @@
             background: #555;
             color: #888;
             cursor: not-allowed;
-            opacity: 0.7;
         }
 
         .mobile-controls-container {
@@ -377,10 +376,8 @@
         .ctrl-btn {
             width: 70px;
             height: 70px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: #333333;
+            border: 2px solid #555555;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -394,7 +391,7 @@
             transition: all 0.2s;
         }
         .ctrl-btn:active {
-            background: rgba(255, 255, 255, 0.3);
+            background: #555555;
             transform: scale(0.9);
         }
 
@@ -463,7 +460,7 @@
             pointer-events: auto;
         }
         .nav-btn:hover {
-            background: rgba(255,255,255,0.3);
+            background: #555555;
             transform: scale(1.1);
         }
 
@@ -485,12 +482,10 @@
             pointer-events: auto;
             color: white;
             font-size: 1.5rem;
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
             transition: all 0.3s;
         }
         .camera-btn:hover {
-            background: rgba(255,255,255,0.2);
+            background: #444444;
             transform: scale(1.05);
         }
         .camera-btn:active {
@@ -587,9 +582,8 @@
             font-weight: bold;
             transition: all 0.2s;
         }
-        .skill-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+        .skill-btn:active { transform: scale(0.9); background: #555555; }
         .skill-btn:disabled {
-            opacity: 0.2;
             cursor: not-allowed;
         }
 
@@ -865,7 +859,7 @@
             <p style="font-size: 1.2rem; line-height: 1.6;">Tem certeza que deseja iniciar um novo jogo?<br><br><span style="color: var(--primary); font-weight: bold;">Todos os seus pontos, moedas e itens serão apagados!</span></p>
             <div style="display: flex; gap: 20px; width: 100%; justify-content: center;">
                 <button id="confirm-yes" class="main-btn orbitron" style="flex: 1; max-width: 180px;" onclick="confirmNewGame()">SIM</button>
-                <button id="confirm-no" class="main-btn orbitron" style="flex: 1; max-width: 180px; background: rgba(255,255,255,0.1);" onclick="hideConfirmModal()">NÃO</button>
+                <button id="confirm-no" class="main-btn orbitron" style="flex: 1; max-width: 180px; background: #333333;" onclick="hideConfirmModal()">NÃO</button>
             </div>
         </div>
     </div>
@@ -1141,7 +1135,7 @@
         </div>
     </div>
     <div class="control-group">
-        <div id="btn-vortex" class="ctrl-btn" style="display: none; background: rgba(241, 196, 15, 0.4); border-color: #f1c40f; color: #f1c40f; margin-bottom: 10px; width: 110px; height: 50px; font-size: 1rem; font-weight: 900; border-radius: 25px; box-shadow: 0 0 15px rgba(241, 196, 15, 0.4);" onclick="activateVortex()">VÓRTICE</div>
+        <div id="btn-vortex" class="ctrl-btn" style="display: none; background: #614f06; border-color: #f1c40f; color: #f1c40f; margin-bottom: 10px; width: 110px; height: 50px; font-size: 1rem; font-weight: 900; border-radius: 25px; box-shadow: 0 0 15px #614f06;" onclick="activateVortex()">VÓRTICE</div>
         <div id="ctrl-jump" class="ctrl-btn">PULO</div>
         <div id="joystick-container" class="joystick-container">
             <div id="joystick-handle" class="joystick-handle"></div>
@@ -2031,7 +2025,6 @@
             const btn = document.getElementById('btn-buy-helper');
             btn.innerText = `COMPRAR (${helperCount})`;
             btn.disabled = totalCoins < 5;
-            btn.style.opacity = totalCoins < 5 ? "0.5" : "1";
         }
         try { SoundManager.playButtonSound(); } catch(e){}
     }
@@ -2330,11 +2323,6 @@
         const startBtn = document.getElementById('btn-start-battle');
         startBtn.innerText = "INICIAR";
         startBtn.disabled = false;
-        if (currentLevel === 1 && availablePoints > 0) {
-            startBtn.style.opacity = "0.8";
-        } else {
-            startBtn.style.opacity = "1";
-        }
 
         const btn1 = document.getElementById('btn-scenario-1');
         const btn2 = document.getElementById('btn-scenario-2');
@@ -3176,7 +3164,6 @@
 
         // Ativa/Desativa o botão CONTINUAR dependendo do progresso
         const canContinue = currentLevel > 1 || playerSkills.forca > 0 || playerSkills.velocidade > 0 || playerSkills.resistencia > 0 || availablePoints < 3 || totalCoins > 0;
-        document.getElementById('btn-continue').style.opacity = canContinue ? "1" : "0.5";
         document.getElementById('btn-continue').disabled = !canContinue;
     }
 
