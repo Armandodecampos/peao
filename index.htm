@@ -426,10 +426,8 @@
         .joystick-container {
             width: 120px;
             height: 120px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: #222222;
+            border: 2px solid #555555;
             border-radius: 50%;
             position: relative;
             pointer-events: auto;
@@ -442,7 +440,7 @@
         .joystick-handle {
             width: 50px;
             height: 50px;
-            background: rgba(255, 255, 255, 0.3);
+            background: #555555;
             border-radius: 50%;
             pointer-events: none;
         }
@@ -1392,7 +1390,7 @@
         ],
         currentTrackIndex: 0,
         masterVolume: 0.5,
-        currentModeVolume: 0.2,
+        currentModeVolume: 1.0,
 
         init() {
             if (this.ctx) {
@@ -3084,7 +3082,7 @@
 
         try {
             SoundManager.playStart();
-            SoundManager.setMusicVolume(0.4);
+            SoundManager.setMusicVolume(1.0);
             SoundManager.playMusic();
         } catch(e){}
         raceActive = true;
@@ -3192,7 +3190,7 @@
 
     function showMainMenu() {
         try {
-            SoundManager.setMusicVolume(0.1);
+            SoundManager.setMusicVolume(0.3);
             SoundManager.playMusic();
             SoundManager.playButtonSound();
         } catch(e){}
@@ -3249,7 +3247,7 @@
 
     function backToOptions() {
         try {
-            SoundManager.setMusicVolume(0.1);
+            SoundManager.setMusicVolume(0.3);
             SoundManager.playButtonSound();
         } catch(e){}
         isPaused = false;
