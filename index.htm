@@ -210,6 +210,26 @@
             pointer-events: auto;
         }
 
+        .volume-slider {
+            width: 100%;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.1);
+            height: 8px;
+            border-radius: 5px;
+            outline: none;
+            margin: 10px 0;
+        }
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
         .points-val {
             font-size: 1.8rem;
             color: var(--primary);
@@ -912,6 +932,10 @@
     </div>
     <div class="start-container" style="justify-content: center;">
         <div class="main-panel glass" style="max-width: 400px; padding: 40px; gap: 20px; align-items: center; justify-content: center;">
+            <div style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                <label style="font-size: 0.8rem; font-weight: bold; letter-spacing: 2px; color: #aaa;">VOLUME DA MÚSICA</label>
+                <input type="range" min="0" max="100" value="50" class="volume-slider" id="volume-slider" oninput="SoundManager.setMasterVolume(this.value/100); saveGame()">
+            </div>
             <button id="music-toggle-btn" class="main-btn orbitron" style="width: 100%; background: var(--accent);" onclick="toggleMusic()">MÚSICA: LIGADA</button>
             <button id="music-next-btn" class="main-btn orbitron" style="width: 100%; font-size: 1rem;" onclick="nextMusic()">TROCAR MÚSICA</button>
             <button id="controls-btn" class="main-btn orbitron" style="width: 100%;" onclick="openControlsModal('config-modal')">CONTROLE</button>
@@ -1361,10 +1385,14 @@
         bgMusic: null,
         isMusicEnabled: true,
         musicTracks: [
-            "https://dl.dropbox.com/scl/fi/5cc7uboctn12jf6n29699/idoberg-metal-bass-amp-drums-loop-413373.mp3?rlkey=wi9djf4dl6c6zefqwa96p3rqz&st=81chif95&dl=1",
-            "https://dl.dropbox.com/scl/fi/3ui2zg2u70vtbtrartyzg/freesound_community-groove-metal-break-8-22279.mp3?rlkey=ifviwup9nyni478c8hbw6dszw&st=vs3fvni0&dl=1"
+            "https://dl.dropbox.com/scl/fi/m8te1t79sr8eogqx0gq7k/Pe-o-de-batalha-1.mp3?rlkey=kj3pk7y9v7bll94szyk4te2tn&st=5253yjx3&dl=1",
+            "https://dl.dropbox.com/scl/fi/4pp9fb3fsft322sg5wccq/Pe-o-de-batalha-2.mp3?rlkey=1etb3mngys7sp5uz60yyqfypa&st=kf2iktr2&dl=1",
+            "https://dl.dropbox.com/scl/fi/vjy8wm439rbii5qrc1wjv/Pe-o-de-batalha-3.mp3?rlkey=0r755u5h3sa4ltk6npynxm41u&st=tys49o4x&dl=1",
+            "https://dl.dropbox.com/scl/fi/3l9bao9fcmalt79nrdm2z/Pe-o-de-batalha.mp3?rlkey=j90c8hjsnjy1fyxn0gp6tlw1o&st=gygob0ck&dl=1"
         ],
         currentTrackIndex: 0,
+        masterVolume: 0.5,
+        currentModeVolume: 0.2,
 
         init() {
             if (this.ctx) {
@@ -1563,17 +1591,27 @@
         initMusic() {
             if (this.bgMusic) return;
             this.bgMusic = new Audio(this.musicTracks[this.currentTrackIndex]);
-            this.bgMusic.loop = true;
-            this.bgMusic.volume = 0.1;
+            this.bgMusic.volume = this.masterVolume * this.currentModeVolume;
+            this.bgMusic.addEventListener('ended', () => {
+                this.nextMusic(true);
+            });
         },
 
-        nextMusic() {
-            const wasPlaying = this.bgMusic && !this.bgMusic.paused;
+        nextMusic(forcePlay = false) {
+            const wasPlaying = forcePlay || (this.bgMusic && !this.bgMusic.paused);
             if (this.bgMusic) {
                 this.bgMusic.pause();
                 this.bgMusic = null;
             }
-            this.currentTrackIndex = (this.currentTrackIndex + 1) % this.musicTracks.length;
+            if (this.musicTracks.length > 1) {
+                let nextIndex;
+                do {
+                    nextIndex = Math.floor(Math.random() * this.musicTracks.length);
+                } while (nextIndex === this.currentTrackIndex);
+                this.currentTrackIndex = nextIndex;
+            } else {
+                this.currentTrackIndex = 0;
+            }
             this.initMusic();
             if (wasPlaying) this.playMusic();
             return this.currentTrackIndex;
@@ -1593,7 +1631,13 @@
         },
 
         setMusicVolume(vol) {
-            if (this.bgMusic) this.bgMusic.volume = vol;
+            this.currentModeVolume = vol;
+            if (this.bgMusic) this.bgMusic.volume = this.masterVolume * this.currentModeVolume;
+        },
+
+        setMasterVolume(vol) {
+            this.masterVolume = vol;
+            if (this.bgMusic) this.bgMusic.volume = this.masterVolume * this.currentModeVolume;
         },
 
         toggleMusic() {
@@ -2393,7 +2437,8 @@
             currentShapeIndex,
             totalCoins,
             helperCount,
-            currentScenario
+            currentScenario,
+            masterVolume: SoundManager.masterVolume
         };
         localStorage.setItem('battleBladesProgress', JSON.stringify(data));
     }
@@ -2418,6 +2463,11 @@
             }
             if (data.currentScenario !== undefined) {
                 currentScenario = data.currentScenario;
+            }
+            if (data.masterVolume !== undefined) {
+                SoundManager.setMasterVolume(data.masterVolume);
+                const slider = document.getElementById('volume-slider');
+                if (slider) slider.value = data.masterVolume * 100;
             }
 
             updateSkillsUI();
