@@ -2764,8 +2764,24 @@
         outerWall2.position.y = 0;
         scenario2Group.add(outerWall2);
 
-        window.addEventListener('keydown', e => keys[e.key] = true);
-        window.addEventListener('keyup', e => keys[e.key] = false);
+        window.addEventListener('keydown', e => {
+            if (e.key) {
+                keys[e.key] = true;
+                keys[e.key.toLowerCase()] = true;
+                keys[e.key.toUpperCase()] = true;
+            }
+            if (e.code) keys[e.code] = true;
+        });
+        window.addEventListener('keyup', e => {
+            if (e.key) {
+                keys[e.key] = false;
+                keys[e.key.toLowerCase()] = false;
+                keys[e.key.toUpperCase()] = false;
+            }
+            if (e.code) keys[e.code] = false;
+        });
+        window.addEventListener('blur', () => { keys = {}; });
+        document.addEventListener('visibilitychange', () => { if (document.hidden) keys = {}; });
 
         initMobileControls();
         initCameraSlider();
@@ -3521,10 +3537,16 @@
                 const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
                 // Teclado
-                if (keys['ArrowUp'] || keys['w']) playerConfig.vel.addScaledVector(forward, a);
-                if (keys['ArrowDown'] || keys['s']) playerConfig.vel.addScaledVector(forward, -a);
-                if (keys['ArrowLeft'] || keys['a']) playerConfig.vel.addScaledVector(right, -a);
-                if (keys['ArrowRight'] || keys['d']) playerConfig.vel.addScaledVector(right, a);
+                const moveUp = keys['ArrowUp'] || keys['w'] || keys['W'] || keys['KeyW'];
+                const moveDown = keys['ArrowDown'] || keys['s'] || keys['S'] || keys['KeyS'];
+                const moveLeft = keys['ArrowLeft'] || keys['a'] || keys['A'] || keys['KeyA'];
+                const moveRight = keys['ArrowRight'] || keys['d'] || keys['D'] || keys['KeyD'];
+                const jump = keys[' '] || keys['Space'];
+
+                if (moveUp) playerConfig.vel.addScaledVector(forward, a);
+                if (moveDown) playerConfig.vel.addScaledVector(forward, -a);
+                if (moveLeft) playerConfig.vel.addScaledVector(right, -a);
+                if (moveRight) playerConfig.vel.addScaledVector(right, a);
 
                 // Joystick de Movimento
                 if (moveJoystickInput.x !== 0 || moveJoystickInput.y !== 0) {
@@ -3532,7 +3554,7 @@
                     playerConfig.vel.addScaledVector(right, moveJoystickInput.x * a);
                 }
 
-                if (keys[' ']) {
+                if (jump) {
                     requestJump();
                 }
             }
