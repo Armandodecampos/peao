@@ -1110,6 +1110,14 @@
                     </div>
                     <button id="btn-buy-helper" class="main-btn" style="padding: 10px 20px; font-size: 0.9rem;" onclick="buyHelper()">COMPRAR</button>
                 </div>
+                <div class="skill-row" style="height: auto; padding: 20px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <span class="skill-name" style="font-size: 1rem;">BOMBA</span>
+                        <span style="font-size: 0.7rem; color: #aaa;">Arremesse contra os oponentes.</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 3 MOEDAS</span>
+                    </div>
+                    <button id="btn-buy-bomb" class="main-btn" style="padding: 10px 20px; font-size: 0.9rem;" onclick="buyBomb()">COMPRAR</button>
+                </div>
             </div>
             <button class="main-btn orbitron" style="margin-top: 20px; font-size: 1.1rem; padding: 12px 40px;" onclick="toggleShopModal(false)">VOLTAR</button>
         </div>
@@ -1351,6 +1359,7 @@
         hitWobble: 0,
         isFallen: false,
         hasBomb: false,
+        bombCount: 0,
         accel: 0.02,
         mass: 5.0,
         color: 0x2980b9
@@ -2067,8 +2076,25 @@
             const btn = document.getElementById('btn-buy-helper');
             btn.innerText = `COMPRAR (${helperCount})`;
             btn.disabled = totalCoins < 5;
+
+            const btnBomb = document.getElementById('btn-buy-bomb');
+            if (btnBomb) {
+                btnBomb.innerText = `COMPRAR (${playerConfig.bombCount || 0})`;
+                btnBomb.disabled = totalCoins < 3;
+            }
         }
         try { SoundManager.playButtonSound(); } catch(e){}
+    }
+
+    function buyBomb() {
+        if (totalCoins >= 3) {
+            totalCoins -= 3;
+            playerConfig.bombCount = (playerConfig.bombCount || 0) + 1;
+            updateSkillsUI();
+            toggleShopModal(true);
+            saveGame();
+            try { SoundManager.playButtonSound(); } catch(e){}
+        }
     }
 
     function nextMusic() {
@@ -2436,7 +2462,8 @@
             totalCoins,
             helperCount,
             currentScenario,
-            masterVolume: SoundManager.masterVolume
+            masterVolume: SoundManager.masterVolume,
+            bombCount: playerConfig.bombCount || 0
         };
         localStorage.setItem('battleBladesProgress', JSON.stringify(data));
     }
@@ -2466,6 +2493,9 @@
                 SoundManager.setMasterVolume(data.masterVolume);
                 const slider = document.getElementById('volume-slider');
                 if (slider) slider.value = data.masterVolume * 100;
+            }
+            if (data.bombCount !== undefined) {
+                playerConfig.bombCount = data.bombCount;
             }
 
             updateSkillsUI();
@@ -2845,14 +2875,14 @@
         window.addEventListener('touchend', onTouchEnd);
 
         window.addEventListener('mousedown', (e) => {
-            if (playerConfig.hasBomb && gameStarted && raceActive) {
+            if (((playerConfig.bombCount || 0) > 0 || playerConfig.hasBomb) && gameStarted && raceActive) {
                 if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('.joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker')) return;
                 launchBombAtMouse(e.clientX, e.clientY);
             }
         });
 
         window.addEventListener('touchstart', (e) => {
-             if (playerConfig.hasBomb && gameStarted && raceActive) {
+             if (((playerConfig.bombCount || 0) > 0 || playerConfig.hasBomb) && gameStarted && raceActive) {
                 const touch = e.changedTouches[0];
                 if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('.joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container')) return;
                 launchBombAtMouse(touch.clientX, touch.clientY);
@@ -2861,6 +2891,18 @@
 
         setupScenarios();
         animate();
+    }
+
+    function updateItemSlot() {
+        const slot = document.getElementById('item-slot');
+        const icon = document.getElementById('item-slot-icon');
+        const count = (playerConfig.bombCount || 0) + (playerConfig.hasBomb ? 1 : 0);
+        if (count > 0) {
+            slot.style.display = 'flex';
+            icon.innerText = `💣 x${count}`;
+        } else {
+            slot.style.display = 'none';
+        }
     }
 
     function launchBombAtMouse(x, y) {
@@ -2879,8 +2921,13 @@
         }
 
         if (targetPos) {
-            playerConfig.hasBomb = false;
-            document.getElementById('item-slot').style.display = 'none';
+            if ((playerConfig.bombCount || 0) > 0) {
+                playerConfig.bombCount--;
+            } else {
+                playerConfig.hasBomb = false;
+            }
+            updateItemSlot();
+            saveGame();
             launchedBombs.push(new LaunchedBomb(player.position, targetPos));
             try { SoundManager.playJump(); } catch(e){} // Som de lançamento
         }
@@ -3152,7 +3199,7 @@
 
         playerConfig.isFallen = false;
         playerConfig.hasBomb = false;
-        document.getElementById('item-slot').style.display = 'none';
+        updateItemSlot();
         playerConfig.wobble = 0;
         playerConfig.hitWobble = 0;
 
@@ -3251,6 +3298,7 @@
         availablePoints = 3;
         totalCoins = 0;
         helperCount = 0;
+        playerConfig.bombCount = 0;
         updateSkillsUI();
         saveGame();
         hideConfirmModal();
@@ -3319,16 +3367,20 @@
 
         // Colisões com Bombas
         allBlades.forEach(b => {
-            if (b.cfg.isFallen || b.cfg.hasBomb) return;
+            if (b.cfg.isFallen) return;
+            if (b.mesh !== player && b.cfg.hasBomb) return;
             bombs.forEach(bombItem => {
                 if (bombItem.active) {
                     const d = b.mesh.position.distanceTo(bombItem.mesh.position);
                     const pickupRadius = (b.cfg.collisionRadius || 1.65) + 1.2;
                     if (d < pickupRadius) {
                         bombItem.collect();
-                        b.cfg.hasBomb = true;
                         if (b.mesh === player) {
-                            document.getElementById('item-slot').style.display = 'flex';
+                            b.cfg.bombCount = (b.cfg.bombCount || 0) + 1;
+                            updateItemSlot();
+                            saveGame();
+                        } else {
+                            b.cfg.hasBomb = true;
                         }
                         SoundManager.playCollect();
                     }
