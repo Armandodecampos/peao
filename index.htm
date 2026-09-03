@@ -1114,7 +1114,7 @@
                     <div style="display: flex; flex-direction: column; gap: 5px;">
                         <span class="skill-name" style="font-size: 1rem;">BOMBA</span>
                         <span style="font-size: 0.7rem; color: #aaa;">Arremesse contra os oponentes.</span>
-                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 3 MOEDAS</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 1 MOEDA</span>
                     </div>
                     <button id="btn-buy-bomb" class="main-btn" style="padding: 10px 20px; font-size: 0.9rem;" onclick="buyBomb()">COMPRAR</button>
                 </div>
@@ -2080,15 +2080,15 @@
             const btnBomb = document.getElementById('btn-buy-bomb');
             if (btnBomb) {
                 btnBomb.innerText = `COMPRAR (${playerConfig.bombCount || 0})`;
-                btnBomb.disabled = totalCoins < 3;
+                btnBomb.disabled = totalCoins < 1;
             }
         }
         try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function buyBomb() {
-        if (totalCoins >= 3) {
-            totalCoins -= 3;
+        if (totalCoins >= 1) {
+            totalCoins -= 1;
             playerConfig.bombCount = (playerConfig.bombCount || 0) + 1;
             updateSkillsUI();
             toggleShopModal(true);
