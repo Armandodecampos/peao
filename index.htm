@@ -2765,6 +2765,9 @@
         scenario2Group.add(outerWall2);
 
         window.addEventListener('keydown', e => {
+            if (e.key === 'Escape' || e.code === 'Escape') {
+                toggleSettings();
+            }
             if (e.key) {
                 keys[e.key] = true;
                 keys[e.key.toLowerCase()] = true;
