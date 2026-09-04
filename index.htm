@@ -1373,6 +1373,70 @@
     let availablePoints = 3;
 
     let enemyConfigs = [];
+    let currentStageEnemies = [];
+    let isBossStage = false;
+
+    function distributeEnemySkills(totalPoints) {
+        let skills = { forca: 0, velocidade: 0, resistencia: 0 };
+        const keys = ['forca', 'velocidade', 'resistencia'];
+        for (let i = 0; i < totalPoints; i++) {
+            const k = keys[Math.floor(Math.random() * keys.length)];
+            skills[k]++;
+        }
+        return skills;
+    }
+
+    function generateStageEnemies() {
+        const playerSkillLevel = playerSkills.forca + playerSkills.velocidade + playerSkills.resistencia;
+        const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60, 0xe67e22, 0x16a085, 0x2980b9];
+        const playerColorHex = document.getElementById('player-color').value;
+        const playerColorNum = parseInt(playerColorHex.replace('#', '0x'));
+
+        let eColor = enemyColors[0];
+        if (playerColorNum === eColor) eColor = enemyColors[1];
+
+        currentStageEnemies = [];
+
+        // 20% chance of Boss stage
+        isBossStage = Math.random() < 0.2;
+
+        if (isBossStage) {
+            const bossSkills = playerSkillLevel + 5;
+            const eShapeKey = shapeKeys[Math.floor(Math.random() * shapeKeys.length)];
+            currentStageEnemies.push({
+                size: 'grande',
+                skillPoints: bossSkills,
+                shapeKey: eShapeKey,
+                color: 0x880000,
+                label: `BOSS (Nív. ${bossSkills})`
+            });
+        } else {
+            let targetPoints = Math.max(1, playerSkillLevel);
+            let remainingPoints = targetPoints;
+            let enemyIndex = 1;
+
+            while (remainingPoints > 0) {
+                let pts = 1;
+                if (remainingPoints > 1) {
+                    pts = Math.floor(Math.random() * remainingPoints) + 1;
+                }
+                remainingPoints -= pts;
+
+                const sz = Math.random() < 0.5 ? 'pequeno' : 'médio';
+                const eShapeKey = shapeKeys[Math.floor(Math.random() * shapeKeys.length)];
+                const szLabel = sz === 'pequeno' ? 'PEQUENO' : 'MÉDIO';
+
+                currentStageEnemies.push({
+                    size: sz,
+                    skillPoints: pts,
+                    shapeKey: eShapeKey,
+                    color: eColor,
+                    label: `INIMIGO ${enemyIndex} (${szLabel} - Nív. ${pts})`
+                });
+                enemyIndex++;
+            }
+        }
+    }
 
 
     const sparkGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
@@ -2934,9 +2998,19 @@
     }
 
 
-    function createBlade(color, configKey = 'classic', isPlayer = false, label = "ADVERSÁRIO") {
-        const config = BLADE_CONFIGS[configKey] || BLADE_CONFIGS['classic'];
+    const SIZE_FACTORS = {
+        'pequeno': { scale: 0.7, massMult: 0.7, accelMult: 1.25, staminaMult: 0.8 },
+        'médio': { scale: 1.0, massMult: 1.0, accelMult: 1.0, staminaMult: 1.0 },
+        'grande': { scale: 1.5, massMult: 1.6, accelMult: 0.8, staminaMult: 1.5 }
+    };
+
+    function createBlade(color, configKey = 'classic', isPlayer = false, label = "ADVERSÁRIO", size = 'médio') {
+        const baseConfig = BLADE_CONFIGS[configKey] || BLADE_CONFIGS['classic'];
+        const sizeInfo = SIZE_FACTORS[size] || SIZE_FACTORS['médio'];
+
         const pivot = new THREE.Group();
+        pivot.scale.setScalar(sizeInfo.scale);
+
         const spinner = new THREE.Group();
         pivot.add(spinner);
 
@@ -2951,24 +3025,24 @@
             document.getElementById('ui').appendChild(ui);
         }
 
-        const tipGeo = new THREE.ConeGeometry(config.tip.r, config.tip.h, 16);
+        const tipGeo = new THREE.ConeGeometry(baseConfig.tip.r, baseConfig.tip.h, 16);
         const tipMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 1, roughness: 0.2 });
         const tip = new THREE.Mesh(tipGeo, tipMat);
         tip.rotation.x = Math.PI;
-        tip.position.y = config.tip.h / 2;
+        tip.position.y = baseConfig.tip.h / 2;
         tip.castShadow = true;
         tip.receiveShadow = true;
         spinner.add(tip);
 
-        const bodyGeo = new THREE.CylinderGeometry(config.body.rTop, config.body.rBot, config.body.h, 16);
+        const bodyGeo = new THREE.CylinderGeometry(baseConfig.body.rTop, baseConfig.body.rBot, baseConfig.body.h, 16);
         const bodyMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2, metalness: 0.6 });
         const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.position.y = config.tip.h + config.body.h / 2;
+        body.position.y = baseConfig.tip.h + baseConfig.body.h / 2;
         body.castShadow = true;
         body.receiveShadow = true;
         spinner.add(body);
 
-        config.rings.forEach(r => {
+        baseConfig.rings.forEach(r => {
             let ringGeo;
             if (r.type === 'torus') {
                 ringGeo = new THREE.TorusGeometry(r.r, r.thickness, 16, r.segments || 32);
@@ -2984,17 +3058,30 @@
             spinner.add(ring);
         });
 
-        const topGeo = new THREE.CylinderGeometry(config.top.rTop, config.top.rBot, config.top.h, 16);
+        const topGeo = new THREE.CylinderGeometry(baseConfig.top.rTop, baseConfig.top.rBot, baseConfig.top.h, 16);
         const top = new THREE.Mesh(topGeo, bodyMat);
-        top.position.y = config.tip.h + config.body.h + config.top.h / 2;
+        top.position.y = baseConfig.tip.h + baseConfig.body.h + baseConfig.top.h / 2;
         top.castShadow = true;
         top.receiveShadow = true;
         spinner.add(top);
 
-        const line = new THREE.Mesh(new THREE.BoxGeometry(config.collisionRadius * 2, 0.04, 0.2), new THREE.MeshBasicMaterial({color: 0xffffff}));
-        line.position.y = config.tip.h + config.body.h + config.top.h - 0.05;
+        const line = new THREE.Mesh(new THREE.BoxGeometry(baseConfig.collisionRadius * 2, 0.04, 0.2), new THREE.MeshBasicMaterial({color: 0xffffff}));
+        line.position.y = baseConfig.tip.h + baseConfig.body.h + baseConfig.top.h - 0.05;
         line.castShadow = true;
         spinner.add(line);
+
+        const config = {
+            ...baseConfig,
+            collisionRadius: baseConfig.collisionRadius * sizeInfo.scale,
+            collisionPoints: baseConfig.collisionPoints.map(p => ({
+                r: p.r * sizeInfo.scale,
+                h: p.h * sizeInfo.scale
+            })),
+            mass: baseConfig.mass * sizeInfo.massMult,
+            accel: baseConfig.accel * sizeInfo.accelMult,
+            size: size,
+            staminaMult: sizeInfo.staminaMult
+        };
 
         return { pivot, ui, config };
     }
@@ -3046,7 +3133,7 @@
         const shapeKey = shapeKeys[currentShapeIndex];
 
         playerConfig.color = playerColorNum;
-        const pObj = createBlade(playerConfig.color, shapeKey, true);
+        const pObj = createBlade(playerConfig.color, shapeKey, true, "VOCÊ", 'médio');
         player = pObj.pivot;
         scene.add(player);
 
@@ -3058,7 +3145,8 @@
         playerConfig.accel = pObj.config.accel * (1 + playerSkills.velocidade * 0.05);
 
         for (let i = 0; i < helperCount; i++) {
-            const hObj = createBlade(playerConfig.color, shapeKey, false, `AJUDANTE ${i+1}`);
+            const hSize = Math.random() < 0.5 ? 'pequeno' : 'médio';
+            const hObj = createBlade(playerConfig.color, shapeKey, false, `AJUDANTE ${i+1}`, hSize);
             const hMesh = hObj.pivot;
             const hUI = hObj.ui;
             hUI.id = `helper-ui-${i}`;
@@ -3086,13 +3174,12 @@
             });
         }
 
-        const enemyColors = [0xc0392b, 0x8e44ad, 0x27ae60, 0xe67e22, 0x16a085, 0x2980b9];
-        let eColor = enemyColors[0];
-        if (playerColorNum === eColor) eColor = enemyColors[1];
+        if (!currentStageEnemies || currentStageEnemies.length === 0) {
+            generateStageEnemies();
+        }
 
-        for(let i=0; i<currentLevel; i++) {
-            const eShapeKey = shapeKeys[Math.floor(Math.random() * shapeKeys.length)];
-            const eBladeObj = createBlade(eColor, eShapeKey, false);
+        currentStageEnemies.forEach((eData) => {
+            const eBladeObj = createBlade(eData.color, eData.shapeKey, false, eData.label, eData.size);
             scene.add(eBladeObj.pivot);
 
             enemies.push({
@@ -3100,25 +3187,29 @@
                 ui: eBladeObj.ui
             });
 
+            const eSkills = distributeEnemySkills(eData.skillPoints);
+
             enemyConfigs.push({
                 mesh: eBladeObj.pivot,
                 ui: eBladeObj.ui,
                 vel: new THREE.Vector3(0, 0, 0),
-                stamina: 100,
+                stamina: 100 * (eBladeObj.config.staminaMult || 1),
                 rotationSpeed: 1.5,
                 wobble: 0,
                 hitWobble: 0,
                 isFallen: false,
                 hasBomb: false,
-                accel: (eBladeObj.config.accel * 0.7) + Math.random() * (eBladeObj.config.accel * 0.4),
+                accel: eBladeObj.config.accel * (1 + eSkills.velocidade * 0.05),
                 mass: eBladeObj.config.mass,
                 collisionRadius: eBladeObj.config.collisionRadius,
                 collisionPoints: eBladeObj.config.collisionPoints,
-                color: eColor,
+                color: eData.color,
+                skills: eSkills,
+                size: eData.size,
                 perceivedHearts: new Map(),
                 perceivedBombs: new Map()
             });
-        }
+        });
 
         resetPositions();
 
@@ -3341,10 +3432,24 @@
         showMainMenu();
     }
 
+    function retrySameStage() {
+        try { SoundManager.playButtonSound(); } catch(e){}
+        document.getElementById('msg').style.display = 'none';
+        startGame();
+    }
+
+    function retryNewStage() {
+        try { SoundManager.playButtonSound(); } catch(e){}
+        generateStageEnemies();
+        document.getElementById('msg').style.display = 'none';
+        startGame();
+    }
+
     function nextLevel() {
         try { SoundManager.playButtonSound(); } catch(e){}
         currentLevel++;
         availablePoints++;
+        generateStageEnemies();
         updateSkillsUI();
         saveGame();
         isPaused = false;
@@ -3424,12 +3529,11 @@
                     const pushFactor = 0.05 + (relVel * 0.3);
                     let power = (b1.cfg.rotationSpeed + b2.cfg.rotationSpeed) * pushFactor;
 
-                    // Aplica Força se for o player envolvido (Impacto reduzido para 5% por ponto)
-                    if (b1.mesh === player || b2.mesh === player) {
-                        let forceBonus = playerSkills.forca * 0.05;
-                        if (isVortexActive) forceBonus = (playerSkills.forca * 2 + 5) * 0.05; // Dobra a habilidade e ganha bônus base
-                        power *= (1 + forceBonus);
-                    }
+                    // Aplica Força (Impacto de 5% por ponto)
+                    let b1Force = (b1.mesh === player) ? (playerSkills.forca * (isVortexActive ? 2 : 1) + (isVortexActive ? 5 : 0)) : (b1.cfg.skills ? b1.cfg.skills.forca : 0);
+                    let b2Force = (b2.mesh === player) ? (playerSkills.forca * (isVortexActive ? 2 : 1) + (isVortexActive ? 5 : 0)) : (b2.cfg.skills ? b2.cfg.skills.forca : 0);
+
+                    power *= (1 + b1Force * 0.05 + b2Force * 0.05);
 
                     b1.cfg.vel.addScaledVector(forceDir, power / b1.cfg.mass);
                     b2.cfg.vel.addScaledVector(forceDir, -power / b2.cfg.mass);
@@ -3443,17 +3547,11 @@
                     let damage1 = baseDamage;
                     let damage2 = baseDamage;
 
-                    // Aplica Resistência apenas se o envolvido for o player (Impacto reduzido para 3% por ponto)
-                    if (b1.mesh === player) {
-                        let resBonus = playerSkills.resistencia * 0.03;
-                        if (isVortexActive) resBonus = (playerSkills.resistencia * 2 + 5) * 0.03;
-                        damage1 *= Math.max(0.1, 1 - resBonus);
-                    }
-                    if (b2.mesh === player) {
-                        let resBonus = playerSkills.resistencia * 0.03;
-                        if (isVortexActive) resBonus = (playerSkills.resistencia * 2 + 5) * 0.03;
-                        damage2 *= Math.max(0.1, 1 - resBonus);
-                    }
+                    let b1Res = (b1.mesh === player) ? (playerSkills.resistencia * (isVortexActive ? 2 : 1) + (isVortexActive ? 5 : 0)) : (b1.cfg.skills ? b1.cfg.skills.resistencia : 0);
+                    let b2Res = (b2.mesh === player) ? (playerSkills.resistencia * (isVortexActive ? 2 : 1) + (isVortexActive ? 5 : 0)) : (b2.cfg.skills ? b2.cfg.skills.resistencia : 0);
+
+                    damage1 *= Math.max(0.1, 1 - b1Res * 0.03);
+                    damage2 *= Math.max(0.1, 1 - b2Res * 0.03);
 
                     b1.cfg.stamina -= damage1;
                     b2.cfg.stamina -= damage2;
@@ -4155,8 +4253,11 @@
                 `;
                 const lossContent = `
                     <h2 style="color: #f1c40f">Derrota!</h2>
-                    <p style="font-size: 1.2rem;">Tente novamente o nível ${currentLevel}.</p>
-                    <button class="main-btn" style="margin-top: 20px;" onclick="startGame(true)">TENTAR NOVAMENTE</button>
+                    <p style="font-size: 1.2rem;">Escolha como deseja continuar:</p>
+                    <div style="display: flex; gap: 15px; margin-top: 20px; justify-content: center; flex-wrap: wrap;">
+                        <button class="main-btn" style="font-size: 1rem; padding: 12px 20px;" onclick="retrySameStage()">REPETIR ESTÁGIO</button>
+                        <button class="main-btn" style="font-size: 1rem; padding: 12px 20px; background: var(--accent);" onclick="retryNewStage()">NOVO ESTÁGIO</button>
+                    </div>
                 `;
 
                 st.innerHTML = win ? winContent : lossContent;
