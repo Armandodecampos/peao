@@ -1091,7 +1091,7 @@
     </div>
 </div>
 
-<div id="shop-modal" class="overlay" style="display: none; flex-direction: column; align-items: center; justify-content: flex-start; background: #000; z-index: 1000; overflow-y: auto; padding-top: 20px; padding-bottom: 20px;">
+<div id="shop-modal" class="overlay" style="display: none; flex-direction: column; align-items: center; justify-content: flex-start; background: #000; z-index: 1000; overflow-y: auto; padding-top: 10px; padding-bottom: 30px;">
     <div class="header-section" style="position: relative; top: 0; transform: none; margin-bottom: 15px;">
         <h1 class="glow-text">LOJA</h1>
         <div style="margin-top: 10px;">
@@ -1099,7 +1099,7 @@
             <span id="shop-coins" class="points-val" style="color: #f1c40f;">0</span>
         </div>
     </div>
-    <div class="start-container" style="justify-content: center; margin-top: 0;">
+    <div class="start-container" style="justify-content: flex-start; margin-top: 0; overflow-y: visible; flex: none; width: 100%; max-width: 550px; padding: 10px;">
         <div class="main-panel glass" style="max-width: 550px; padding: 25px; display: flex; flex-direction: column; align-items: center; gap: 20px;">
             <div style="width: 100%; display: flex; flex-direction: column; gap: 15px; align-items: center;">
 
@@ -1152,16 +1152,16 @@
                     <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
                         <span class="skill-name" style="font-size: 0.95rem;">VÓRTICE CLÁSSICO</span>
                         <span style="font-size: 0.7rem; color: #aaa;">Efeito místico tradicional de energia branca pura.</span>
-                        <span style="font-size: 0.8rem; color: #2ecc71; font-weight: bold;">GRÁTIS</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 10 MOEDAS</span>
                     </div>
-                    <button id="btn-vortex-classico" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="selectVortexSkin('classico', 0)">EQUIPADO</button>
+                    <button id="btn-vortex-classico" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="selectVortexSkin('classico', 10)">EQUIPADO</button>
                 </div>
 
                 <div class="skill-row" style="height: auto; padding: 15px;">
                     <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
                         <span class="skill-name" style="font-size: 0.95rem; color: #ff5500;">VÓRTICE DE FOGO</span>
                         <span style="font-size: 0.7rem; color: #aaa;">Partículas flamejantes ardentes e aura de iluminação de fogo.</span>
-                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">TAXA: 10 MOEDAS</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 10 MOEDAS</span>
                     </div>
                     <button id="btn-vortex-fogo" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="selectVortexSkin('fogo', 10)">INSTALAR</button>
                 </div>
@@ -1170,9 +1170,9 @@
                     <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
                         <span class="skill-name" style="font-size: 0.95rem; color: #00d2ff;">VÓRTICE ELÉTRICO</span>
                         <span style="font-size: 0.7rem; color: #aaa;">Vórtice de plasma azul reluzente com faíscas de energia eletrizante.</span>
-                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">TAXA: 15 MOEDAS</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 10 MOEDAS</span>
                     </div>
-                    <button id="btn-vortex-eletrico" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="selectVortexSkin('eletrico', 15)">INSTALAR</button>
+                    <button id="btn-vortex-eletrico" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="selectVortexSkin('eletrico', 10)">INSTALAR</button>
                 </div>
 
             </div>
@@ -2235,29 +2235,23 @@
         }
 
         // Modelos de Vórtice
-        updateVortexSkinBtn('btn-vortex-classico', 'classico', 0);
+        updateVortexSkinBtn('btn-vortex-classico', 'classico', 10);
         updateVortexSkinBtn('btn-vortex-fogo', 'fogo', 10);
-        updateVortexSkinBtn('btn-vortex-eletrico', 'eletrico', 15);
+        updateVortexSkinBtn('btn-vortex-eletrico', 'eletrico', 10);
     }
 
-    function updateVortexSkinBtn(btnId, skinKey, price) {
+    function updateVortexSkinBtn(btnId, skinKey, price = 10) {
         const btn = document.getElementById(btnId);
         if (!btn) return;
-        const isUnlocked = unlockedVortexSkins.includes(skinKey);
         const isEquipped = selectedVortexSkin === skinKey;
 
         if (isEquipped) {
             btn.innerText = 'EQUIPADO';
             btn.style.background = '#2ecc71';
             btn.style.color = '#000';
-            btn.disabled = false;
-        } else if (isUnlocked) {
-            btn.innerText = 'EQUIPAR';
-            btn.style.background = 'var(--primary)';
-            btn.style.color = '#000';
-            btn.disabled = false;
+            btn.disabled = true;
         } else {
-            btn.innerText = `INSTALAR (${price})`;
+            btn.innerText = 'INSTALAR';
             btn.style.background = totalCoins >= price ? '#e67e22' : '#555';
             btn.style.color = '#fff';
             btn.disabled = totalCoins < price;
@@ -2287,22 +2281,16 @@
         }
     }
 
-    function selectVortexSkin(skinKey, fee) {
-        if (!unlockedVortexSkins.includes(skinKey)) {
-            if (totalCoins >= fee) {
-                totalCoins -= fee;
-                unlockedVortexSkins.push(skinKey);
-                selectedVortexSkin = skinKey;
-            } else {
-                return;
-            }
-        } else {
+    function selectVortexSkin(skinKey, fee = 10) {
+        if (selectedVortexSkin === skinKey) return;
+        if (totalCoins >= fee) {
+            totalCoins -= fee;
             selectedVortexSkin = skinKey;
+            updateSkillsUI();
+            updateShopUI();
+            saveGame();
+            try { SoundManager.playButtonSound(); } catch(e){}
         }
-        updateSkillsUI();
-        updateShopUI();
-        saveGame();
-        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function nextMusic() {
