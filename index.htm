@@ -1091,35 +1091,92 @@
     </div>
 </div>
 
-<div id="shop-modal" class="overlay" style="display: none; justify-content: center; background: #000; z-index: 1000;">
-    <div class="header-section">
+<div id="shop-modal" class="overlay" style="display: none; flex-direction: column; align-items: center; justify-content: flex-start; background: #000; z-index: 1000; overflow-y: auto; padding-top: 20px; padding-bottom: 20px;">
+    <div class="header-section" style="position: relative; top: 0; transform: none; margin-bottom: 15px;">
         <h1 class="glow-text">LOJA</h1>
         <div style="margin-top: 10px;">
             <span style="font-size: 0.9rem; color: #aaa; letter-spacing: 2px;">SUAS MOEDAS:</span>
             <span id="shop-coins" class="points-val" style="color: #f1c40f;">0</span>
         </div>
     </div>
-    <div class="start-container" style="justify-content: center;">
-        <div class="main-panel glass" style="max-width: 500px; padding: 30px; display: flex; flex-direction: column; align-items: center; gap: 20px;">
+    <div class="start-container" style="justify-content: center; margin-top: 0;">
+        <div class="main-panel glass" style="max-width: 550px; padding: 25px; display: flex; flex-direction: column; align-items: center; gap: 20px;">
             <div style="width: 100%; display: flex; flex-direction: column; gap: 15px; align-items: center;">
-                <div class="skill-row" style="height: auto; padding: 20px;">
-                    <div style="display: flex; flex-direction: column; gap: 5px;">
-                        <span class="skill-name" style="font-size: 1rem;">PEÃO AJUDANTE</span>
-                        <span style="font-size: 0.7rem; color: #aaa;">Ajuda você na próxima rodada.</span>
+
+                <!-- AJUDANTES -->
+                <h3 style="color: var(--primary); letter-spacing: 2px; margin-bottom: 0; font-size: 0.95rem;">AJUDANTES</h3>
+
+                <div class="skill-row" style="height: auto; padding: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
+                        <span class="skill-name" style="font-size: 0.95rem;">AJUDANTE PEQUENO</span>
+                        <span style="font-size: 0.7rem; color: #aaa;">Ajudante compacto e ágil que batalha ao seu lado.</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 3 MOEDAS</span>
+                    </div>
+                    <button id="btn-buy-helper-small" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="buyHelperWithSize('pequeno', 3)">COMPRAR</button>
+                </div>
+
+                <div class="skill-row" style="height: auto; padding: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
+                        <span class="skill-name" style="font-size: 0.95rem;">AJUDANTE MÉDIO</span>
+                        <span style="font-size: 0.7rem; color: #aaa;">Ajudante de porte padrão com força e velocidade equilibradas.</span>
                         <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 5 MOEDAS</span>
                     </div>
-                    <button id="btn-buy-helper" class="main-btn" style="padding: 10px 20px; font-size: 0.9rem;" onclick="buyHelper()">COMPRAR</button>
+                    <button id="btn-buy-helper-medium" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="buyHelperWithSize('médio', 5)">COMPRAR</button>
                 </div>
-                <div class="skill-row" style="height: auto; padding: 20px;">
-                    <div style="display: flex; flex-direction: column; gap: 5px;">
-                        <span class="skill-name" style="font-size: 1rem;">BOMBA</span>
-                        <span style="font-size: 0.7rem; color: #aaa;">Arremesse contra os oponentes.</span>
+
+                <div class="skill-row" style="height: auto; padding: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
+                        <span class="skill-name" style="font-size: 0.95rem;">AJUDANTE GRANDE</span>
+                        <span style="font-size: 0.7rem; color: #aaa;">Ajudante gigante e pesado com alto impacto e resistência.</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 8 MOEDAS</span>
+                    </div>
+                    <button id="btn-buy-helper-large" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="buyHelperWithSize('grande', 8)">COMPRAR</button>
+                </div>
+
+                <!-- ITENS DE COMBATE -->
+                <h3 style="color: var(--primary); letter-spacing: 2px; margin-top: 10px; margin-bottom: 0; font-size: 0.95rem;">ITENS DE COMBATE</h3>
+
+                <div class="skill-row" style="height: auto; padding: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
+                        <span class="skill-name" style="font-size: 0.95rem;">BOMBA DE ARENA</span>
+                        <span style="font-size: 0.7rem; color: #aaa;">Arremesse contra os oponentes para causar alto dano em área.</span>
                         <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 1 MOEDA</span>
                     </div>
-                    <button id="btn-buy-bomb" class="main-btn" style="padding: 10px 20px; font-size: 0.9rem;" onclick="buyBomb()">COMPRAR</button>
+                    <button id="btn-buy-bomb" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="buyBomb()">COMPRAR</button>
                 </div>
+
+                <!-- MODELOS DE VÓRTICE -->
+                <h3 style="color: var(--primary); letter-spacing: 2px; margin-top: 10px; margin-bottom: 0; font-size: 0.95rem;">MODELOS VISUAIS DO VÓRTICE</h3>
+
+                <div class="skill-row" style="height: auto; padding: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
+                        <span class="skill-name" style="font-size: 0.95rem;">VÓRTICE CLÁSSICO</span>
+                        <span style="font-size: 0.7rem; color: #aaa;">Efeito místico tradicional de energia branca pura.</span>
+                        <span style="font-size: 0.8rem; color: #2ecc71; font-weight: bold;">GRÁTIS</span>
+                    </div>
+                    <button id="btn-vortex-classico" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="selectVortexSkin('classico', 0)">EQUIPADO</button>
+                </div>
+
+                <div class="skill-row" style="height: auto; padding: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
+                        <span class="skill-name" style="font-size: 0.95rem; color: #ff5500;">VÓRTICE DE FOGO</span>
+                        <span style="font-size: 0.7rem; color: #aaa;">Partículas flamejantes ardentes e aura de iluminação de fogo.</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">TAXA: 10 MOEDAS</span>
+                    </div>
+                    <button id="btn-vortex-fogo" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="selectVortexSkin('fogo', 10)">INSTALAR</button>
+                </div>
+
+                <div class="skill-row" style="height: auto; padding: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
+                        <span class="skill-name" style="font-size: 0.95rem; color: #00d2ff;">VÓRTICE ELÉTRICO</span>
+                        <span style="font-size: 0.7rem; color: #aaa;">Vórtice de plasma azul reluzente com faíscas de energia eletrizante.</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">TAXA: 15 MOEDAS</span>
+                    </div>
+                    <button id="btn-vortex-eletrico" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="selectVortexSkin('eletrico', 15)">INSTALAR</button>
+                </div>
+
             </div>
-            <button class="main-btn orbitron" style="margin-top: 20px; font-size: 1.1rem; padding: 12px 40px;" onclick="toggleShopModal(false)">VOLTAR</button>
+            <button class="main-btn orbitron" style="margin-top: 15px; font-size: 1.1rem; padding: 10px 40px;" onclick="toggleShopModal(false)">VOLTAR</button>
         </div>
     </div>
 </div>
@@ -1291,6 +1348,9 @@
     let currentLevel = 1;
     let totalCoins = 0;
     let helperCount = 0;
+    let helperSizes = []; // Array de tamanhos dos ajudantes comprados ('pequeno', 'médio', 'grande')
+    let unlockedVortexSkins = ['classico']; // Skins liberadas do vórtice
+    let selectedVortexSkin = 'classico'; // Skin equipada do vórtice
     let helpers = [];
     let helperConfigs = [];
     let helperUIs = [];
@@ -2136,18 +2196,84 @@
         modal.style.display = show ? 'flex' : 'none';
         document.getElementById('top-stats-bar').style.visibility = show ? 'hidden' : 'visible';
         if (show) {
-            document.getElementById('shop-coins').innerText = totalCoins;
-            const btn = document.getElementById('btn-buy-helper');
-            btn.innerText = `COMPRAR (${helperCount})`;
-            btn.disabled = totalCoins < 5;
-
-            const btnBomb = document.getElementById('btn-buy-bomb');
-            if (btnBomb) {
-                btnBomb.innerText = `COMPRAR (${playerConfig.bombCount || 0})`;
-                btnBomb.disabled = totalCoins < 1;
-            }
+            updateShopUI();
         }
         try { SoundManager.playButtonSound(); } catch(e){}
+    }
+
+    function updateShopUI() {
+        document.getElementById('shop-coins').innerText = totalCoins;
+
+        // Botões de Ajudantes
+        const countSmall = helperSizes.filter(s => s === 'pequeno').length;
+        const countMedium = helperSizes.filter(s => s === 'médio').length;
+        const countLarge = helperSizes.filter(s => s === 'grande').length;
+
+        const btnSmall = document.getElementById('btn-buy-helper-small');
+        if (btnSmall) {
+            btnSmall.innerText = `COMPRAR (${countSmall})`;
+            btnSmall.disabled = totalCoins < 3;
+        }
+
+        const btnMedium = document.getElementById('btn-buy-helper-medium');
+        if (btnMedium) {
+            btnMedium.innerText = `COMPRAR (${countMedium})`;
+            btnMedium.disabled = totalCoins < 5;
+        }
+
+        const btnLarge = document.getElementById('btn-buy-helper-large');
+        if (btnLarge) {
+            btnLarge.innerText = `COMPRAR (${countLarge})`;
+            btnLarge.disabled = totalCoins < 8;
+        }
+
+        // Bomba
+        const btnBomb = document.getElementById('btn-buy-bomb');
+        if (btnBomb) {
+            btnBomb.innerText = `COMPRAR (${playerConfig.bombCount || 0})`;
+            btnBomb.disabled = totalCoins < 1;
+        }
+
+        // Modelos de Vórtice
+        updateVortexSkinBtn('btn-vortex-classico', 'classico', 0);
+        updateVortexSkinBtn('btn-vortex-fogo', 'fogo', 10);
+        updateVortexSkinBtn('btn-vortex-eletrico', 'eletrico', 15);
+    }
+
+    function updateVortexSkinBtn(btnId, skinKey, price) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        const isUnlocked = unlockedVortexSkins.includes(skinKey);
+        const isEquipped = selectedVortexSkin === skinKey;
+
+        if (isEquipped) {
+            btn.innerText = 'EQUIPADO';
+            btn.style.background = '#2ecc71';
+            btn.style.color = '#000';
+            btn.disabled = false;
+        } else if (isUnlocked) {
+            btn.innerText = 'EQUIPAR';
+            btn.style.background = 'var(--primary)';
+            btn.style.color = '#000';
+            btn.disabled = false;
+        } else {
+            btn.innerText = `INSTALAR (${price})`;
+            btn.style.background = totalCoins >= price ? '#e67e22' : '#555';
+            btn.style.color = '#fff';
+            btn.disabled = totalCoins < price;
+        }
+    }
+
+    function buyHelperWithSize(size, price) {
+        if (totalCoins >= price) {
+            totalCoins -= price;
+            helperSizes.push(size);
+            helperCount = helperSizes.length;
+            updateSkillsUI();
+            updateShopUI();
+            saveGame();
+            try { SoundManager.playButtonSound(); } catch(e){}
+        }
     }
 
     function buyBomb() {
@@ -2155,10 +2281,28 @@
             totalCoins -= 1;
             playerConfig.bombCount = (playerConfig.bombCount || 0) + 1;
             updateSkillsUI();
-            toggleShopModal(true);
+            updateShopUI();
             saveGame();
             try { SoundManager.playButtonSound(); } catch(e){}
         }
+    }
+
+    function selectVortexSkin(skinKey, fee) {
+        if (!unlockedVortexSkins.includes(skinKey)) {
+            if (totalCoins >= fee) {
+                totalCoins -= fee;
+                unlockedVortexSkins.push(skinKey);
+                selectedVortexSkin = skinKey;
+            } else {
+                return;
+            }
+        } else {
+            selectedVortexSkin = skinKey;
+        }
+        updateSkillsUI();
+        updateShopUI();
+        saveGame();
+        try { SoundManager.playButtonSound(); } catch(e){}
     }
 
     function nextMusic() {
@@ -2169,17 +2313,6 @@
             setTimeout(() => { btn.innerText = "TROCAR MÚSICA"; }, 2000);
         }
         try { SoundManager.playButtonSound(); } catch(e){}
-    }
-
-    function buyHelper() {
-        if (totalCoins >= 5) {
-            totalCoins -= 5;
-            helperCount++;
-            updateSkillsUI();
-            toggleShopModal(true);
-            saveGame();
-            try { SoundManager.playButtonSound(); } catch(e){}
-        }
     }
 
     function toggleSettings() {
@@ -2525,6 +2658,9 @@
             currentShapeIndex,
             totalCoins,
             helperCount,
+            helperSizes,
+            unlockedVortexSkins,
+            selectedVortexSkin,
             currentScenario,
             masterVolume: SoundManager.masterVolume,
             bombCount: playerConfig.bombCount || 0
@@ -2545,11 +2681,24 @@
             currentShapeIndex = data.currentShapeIndex || 0;
             totalCoins = data.totalCoins || 0;
 
-            if (data.helperCount !== undefined) {
+            if (data.helperSizes !== undefined && Array.isArray(data.helperSizes)) {
+                helperSizes = data.helperSizes;
+                helperCount = helperSizes.length;
+            } else if (data.helperCount !== undefined) {
                 helperCount = data.helperCount;
+                helperSizes = Array(helperCount).fill('médio');
             } else if (data.hasHelper !== undefined) {
                 helperCount = data.hasHelper ? 1 : 0;
+                helperSizes = helperCount ? ['médio'] : [];
             }
+
+            if (data.unlockedVortexSkins !== undefined && Array.isArray(data.unlockedVortexSkins)) {
+                unlockedVortexSkins = data.unlockedVortexSkins;
+            }
+            if (data.selectedVortexSkin !== undefined) {
+                selectedVortexSkin = data.selectedVortexSkin;
+            }
+
             if (data.currentScenario !== undefined) {
                 currentScenario = data.currentScenario;
             }
@@ -3145,7 +3294,7 @@
         playerConfig.accel = pObj.config.accel * (1 + playerSkills.velocidade * 0.05);
 
         for (let i = 0; i < helperCount; i++) {
-            const hSize = Math.random() < 0.5 ? 'pequeno' : 'médio';
+            const hSize = helperSizes[i] || 'médio';
             const hObj = createBlade(playerConfig.color, shapeKey, false, `AJUDANTE ${i+1}`, hSize);
             const hMesh = hObj.pivot;
             const hUI = hObj.ui;
@@ -3389,6 +3538,9 @@
         availablePoints = 3;
         totalCoins = 0;
         helperCount = 0;
+        helperSizes = [];
+        unlockedVortexSkins = ['classico'];
+        selectedVortexSkin = 'classico';
         playerConfig.bombCount = 0;
         updateSkillsUI();
         saveGame();
@@ -4135,19 +4287,31 @@
 
         vortexEffectMesh = new THREE.Group();
 
-        const partGeo = new THREE.SphereGeometry(0.3, 8, 8);
-        const partMat = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0.3,
-            blending: THREE.AdditiveBlending
-        });
+        const skin = selectedVortexSkin || 'classico';
+        const numParticles = (skin === 'fogo') ? 220 : ((skin === 'eletrico') ? 200 : 180);
 
-        const numParticles = 180;
+        const partGeo = new THREE.SphereGeometry(0.3, 8, 8);
+
+        // Configuração de cores de acordo com o modelo de Vórtice
+        let baseColors = [0xffffff];
+        if (skin === 'fogo') {
+            baseColors = [0xff2200, 0xff5500, 0xffaa00, 0xffe066]; // Fogo ardente
+        } else if (skin === 'eletrico') {
+            baseColors = [0x00d2ff, 0x0055ff, 0x80e5ff, 0xffffff]; // Plasma elétrico
+        }
+
         for (let i = 0; i < numParticles; i++) {
+            const colorHex = baseColors[Math.floor(Math.random() * baseColors.length)];
+            const partMat = new THREE.MeshBasicMaterial({
+                color: colorHex,
+                transparent: true,
+                opacity: skin === 'fogo' ? 0.6 : 0.35,
+                blending: THREE.AdditiveBlending
+            });
+
             const particle = new THREE.Mesh(partGeo, partMat);
 
-            const h = Math.random() * 8.5;
+            const h = Math.random() * (skin === 'fogo' ? 9.5 : 8.5);
             const r = 0.8 + (h / 8.5) * 4.5;
             const angle = Math.random() * Math.PI * 2;
 
@@ -4161,11 +4325,19 @@
                 angle: angle,
                 radius: r,
                 height: h,
-                speed: 0.08 + Math.random() * 0.12
+                speed: (skin === 'fogo' ? 0.12 : (skin === 'eletrico' ? 0.16 : 0.08)) + Math.random() * 0.12,
+                skin: skin
             };
 
             vortexEffectMesh.add(particle);
         }
+
+        // Luz pontual dinâmica no centro do vórtice
+        const lightColor = (skin === 'fogo') ? 0xff4500 : ((skin === 'eletrico') ? 0x00d2ff : 0xffffff);
+        const vortexLight = new THREE.PointLight(lightColor, skin === 'fogo' ? 3 : 2, 18);
+        vortexLight.position.set(0, 3, 0);
+        vortexLight.name = "vortexPointLight";
+        vortexEffectMesh.add(vortexLight);
 
         player.add(vortexEffectMesh);
     }
@@ -4237,10 +4409,16 @@
                 gameOver = true;
                 if (win) {
                     SoundManager.playWin();
-                    helperCount = helperConfigs.filter(hc => !hc.isFallen).length;
+                    const survivingIndices = [];
+                    helperConfigs.forEach((hc, idx) => {
+                        if (!hc.isFallen) survivingIndices.push(idx);
+                    });
+                    helperSizes = survivingIndices.map(idx => helperSizes[idx] || 'médio');
+                    helperCount = helperSizes.length;
                     saveGame();
                 } else {
                     SoundManager.playLoss();
+                    helperSizes = [];
                     helperCount = 0;
                     saveGame();
                 }
