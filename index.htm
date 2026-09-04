@@ -716,8 +716,9 @@
 
         #item-slot {
             position: absolute;
-            top: 20px;
-            right: 20px;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
             width: 70px;
             height: 70px;
             display: none;
@@ -955,7 +956,7 @@
                     <ul class="control-list">
                         <li class="control-item"><span>Mover</span> <span class="control-key">WASD / Setas</span></li>
                         <li class="control-item"><span>Pular</span> <span class="control-key">Espaço</span></li>
-                        <li class="control-item"><span>Lançar Bomba</span> <span class="control-key">Clique (Chão)</span></li>
+                        <li class="control-item"><span>Lançar / Colocar Arma</span> <span class="control-key">Clique (Chão)</span></li>
                         <li class="control-item"><span>Girar Câmera</span> <span class="control-key">Botão Dir. Mouse</span></li>
                         <li class="control-item"><span>Zoom</span> <span class="control-key">Scroll Mouse</span></li>
                     </ul>
@@ -965,7 +966,7 @@
                     <ul class="control-list">
                         <li class="control-item"><span>Mover</span> <span class="control-key">Joystick Esq.</span></li>
                         <li class="control-item"><span>Pular</span> <span class="control-key">Botão PULO</span></li>
-                        <li class="control-item"><span>Lançar Bomba</span> <span class="control-key">Toque (Chão)</span></li>
+                        <li class="control-item"><span>Lançar / Colocar Arma</span> <span class="control-key">Toque (Chão)</span></li>
                         <li class="control-item"><span>Girar Câmera</span> <span class="control-key">Joystick Dir.</span></li>
                         <li class="control-item"><span>Zoom</span> <span class="control-key">Slider Zoom</span></li>
                     </ul>
@@ -1143,6 +1144,15 @@
                         <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 1 MOEDA</span>
                     </div>
                     <button id="btn-buy-bomb" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="buyBomb()">COMPRAR</button>
+                </div>
+
+                <div class="skill-row" style="height: auto; padding: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 5px; max-width: 65%;">
+                        <span class="skill-name" style="font-size: 0.95rem;">MINA TERRESTRE</span>
+                        <span style="font-size: 0.7rem; color: #aaa;">Coloque no chão. Explode quando qualquer peão passar por cima!</span>
+                        <span style="font-size: 0.8rem; color: var(--primary); font-weight: bold;">PREÇO: 2 MOEDAS</span>
+                    </div>
+                    <button id="btn-buy-landmine" class="main-btn" style="padding: 8px 15px; font-size: 0.85rem;" onclick="buyLandmine()">COMPRAR</button>
                 </div>
 
                 <!-- MODELOS DE VÓRTICE -->
@@ -1381,6 +1391,9 @@
     let bombs = [];
     let lastBombSpawn = 0;
     let launchedBombs = [];
+    let landmineItems = [];
+    let lastLandmineSpawn = 0;
+    let placedLandmines = [];
     let cameraShake = 0;
     let cameraZoom = 1.0;
     let vortexCharge = 0;
@@ -1410,6 +1423,11 @@
     const fuseGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 8);
     const fuseMat = new THREE.MeshPhongMaterial({ color: 0xaa5500 });
 
+    const landmineBaseGeo = new THREE.CylinderGeometry(0.9, 1.1, 0.25, 16);
+    const landmineBaseMat = new THREE.MeshPhongMaterial({ color: 0x333333, shininess: 80 });
+    const landmineLightGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.3, 12);
+    const landmineLightMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+
     // Configurações de física para peões
     let playerConfig = {
         vel: new THREE.Vector3(0, 0, 0),
@@ -1420,6 +1438,8 @@
         isFallen: false,
         hasBomb: false,
         bombCount: 0,
+        equippedWeapon: null, // 'bomb' or 'landmine' or null
+        weaponCount: 0,
         accel: 0.02,
         mass: 5.0,
         color: 0x2980b9
@@ -2012,6 +2032,78 @@
         }
     }
 
+    class PlacedLandmine {
+        constructor(position, owner) {
+            this.mesh = new THREE.Group();
+            const base = new THREE.Mesh(landmineBaseGeo, landmineBaseMat);
+            base.castShadow = true;
+            this.mesh.add(base);
+
+            this.lightMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const light = new THREE.Mesh(landmineLightGeo, this.lightMat);
+            light.position.y = 0.15;
+            this.mesh.add(light);
+
+            this.mesh.position.copy(position);
+            this.mesh.position.y = getGroundHeight(position.x, position.z) + 0.15;
+            scene.add(this.mesh);
+
+            this.owner = owner;
+            this.active = true;
+            this.armTime = Date.now() + 500; // 0.5s arming time
+        }
+        update() {
+            if (!this.active) return false;
+            // Pulsing light effect
+            const pulse = (Math.sin(Date.now() * 0.01) + 1) / 2;
+            this.lightMat.color.setHSL(0, 1, 0.2 + pulse * 0.5);
+            return true;
+        }
+        explode() {
+            if (!this.active) return;
+            this.active = false;
+            scene.remove(this.mesh);
+            explodeBomb(this.mesh.position);
+        }
+        remove() {
+            this.active = false;
+            scene.remove(this.mesh);
+        }
+    }
+
+    class LandmineItem {
+        constructor() {
+            this.mesh = new THREE.Group();
+            const base = new THREE.Mesh(landmineBaseGeo, landmineBaseMat);
+            base.castShadow = true;
+            this.mesh.add(base);
+
+            const light = new THREE.Mesh(landmineLightGeo, landmineLightMat);
+            light.position.y = 0.15;
+            this.mesh.add(light);
+
+            const centers = [0, Math.PI/2, Math.PI, -Math.PI/2];
+            const angle = centers[Math.floor(Math.random() * centers.length)];
+            const dist = 62 + Math.random() * 15;
+            const x = Math.cos(angle) * dist;
+            const z = Math.sin(angle) * dist;
+            const y = getGroundHeight(x, z) + 0.5;
+            this.mesh.position.set(x, y, z);
+            this.baseY = y;
+            scene.add(this.mesh);
+            this.active = true;
+        }
+        update() {
+            this.mesh.rotation.y += 0.04;
+            this.mesh.position.y = this.baseY + Math.sin(Date.now() * 0.005) * 0.15;
+            return this.active;
+        }
+        collect() {
+            scene.remove(this.mesh);
+            this.active = false;
+        }
+    }
+
     class LaunchedBomb {
         constructor(start, end) {
             this.mesh = new THREE.Group();
@@ -2227,11 +2319,21 @@
             btnLarge.disabled = totalCoins < 8;
         }
 
-        // Bomba
+        // Itens de Combate
+        const currentWeapon = playerConfig.equippedWeapon;
+        const currentCount = playerConfig.weaponCount || 0;
+
         const btnBomb = document.getElementById('btn-buy-bomb');
         if (btnBomb) {
-            btnBomb.innerText = `COMPRAR (${playerConfig.bombCount || 0})`;
-            btnBomb.disabled = totalCoins < 1;
+            const isBombEquipped = currentWeapon === 'bomb' || currentWeapon === null;
+            btnBomb.innerText = `COMPRAR (${currentWeapon === 'bomb' ? currentCount : 0})`;
+            btnBomb.disabled = totalCoins < 1 || (currentWeapon !== null && currentWeapon !== 'bomb');
+        }
+
+        const btnLandmine = document.getElementById('btn-buy-landmine');
+        if (btnLandmine) {
+            btnLandmine.innerText = `COMPRAR (${currentWeapon === 'landmine' ? currentCount : 0})`;
+            btnLandmine.disabled = totalCoins < 2 || (currentWeapon !== null && currentWeapon !== 'landmine');
         }
 
         // Modelos de Vórtice
@@ -2271,9 +2373,31 @@
     }
 
     function buyBomb() {
+        if (playerConfig.equippedWeapon && playerConfig.equippedWeapon !== 'bomb' && playerConfig.weaponCount > 0) {
+            alert("Não é possível! Você já possui um tipo de arma equipada.");
+            return;
+        }
         if (totalCoins >= 1) {
             totalCoins -= 1;
-            playerConfig.bombCount = (playerConfig.bombCount || 0) + 1;
+            playerConfig.equippedWeapon = 'bomb';
+            playerConfig.weaponCount = (playerConfig.weaponCount || 0) + 1;
+            playerConfig.bombCount = playerConfig.weaponCount;
+            updateSkillsUI();
+            updateShopUI();
+            saveGame();
+            try { SoundManager.playButtonSound(); } catch(e){}
+        }
+    }
+
+    function buyLandmine() {
+        if (playerConfig.equippedWeapon && playerConfig.equippedWeapon !== 'landmine' && playerConfig.weaponCount > 0) {
+            alert("Não é possível! Você já possui um tipo de arma equipada.");
+            return;
+        }
+        if (totalCoins >= 2) {
+            totalCoins -= 2;
+            playerConfig.equippedWeapon = 'landmine';
+            playerConfig.weaponCount = (playerConfig.weaponCount || 0) + 1;
             updateSkillsUI();
             updateShopUI();
             saveGame();
@@ -2651,7 +2775,8 @@
             selectedVortexSkin,
             currentScenario,
             masterVolume: SoundManager.masterVolume,
-            bombCount: playerConfig.bombCount || 0
+            equippedWeapon: playerConfig.equippedWeapon,
+            weaponCount: playerConfig.weaponCount || 0
         };
         localStorage.setItem('battleBladesProgress', JSON.stringify(data));
     }
@@ -2695,8 +2820,16 @@
                 const slider = document.getElementById('volume-slider');
                 if (slider) slider.value = data.masterVolume * 100;
             }
-            if (data.bombCount !== undefined) {
-                playerConfig.bombCount = data.bombCount;
+            if (data.equippedWeapon !== undefined) {
+                playerConfig.equippedWeapon = data.equippedWeapon;
+                playerConfig.weaponCount = data.weaponCount || 0;
+                if (playerConfig.equippedWeapon === 'bomb') {
+                    playerConfig.hasBomb = playerConfig.weaponCount > 0;
+                }
+            } else if (data.bombCount !== undefined && data.bombCount > 0) {
+                playerConfig.equippedWeapon = 'bomb';
+                playerConfig.weaponCount = data.bombCount;
+                playerConfig.hasBomb = true;
             }
 
             updateSkillsUI();
@@ -3076,17 +3209,17 @@
         window.addEventListener('touchend', onTouchEnd);
 
         window.addEventListener('mousedown', (e) => {
-            if (((playerConfig.bombCount || 0) > 0 || playerConfig.hasBomb) && gameStarted && raceActive) {
+            if ((playerConfig.weaponCount || 0) > 0 && playerConfig.equippedWeapon && gameStarted && raceActive) {
                 if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('.joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker')) return;
-                launchBombAtMouse(e.clientX, e.clientY);
+                useEquippedWeaponAtMouse(e.clientX, e.clientY);
             }
         });
 
         window.addEventListener('touchstart', (e) => {
-             if (((playerConfig.bombCount || 0) > 0 || playerConfig.hasBomb) && gameStarted && raceActive) {
+             if ((playerConfig.weaponCount || 0) > 0 && playerConfig.equippedWeapon && gameStarted && raceActive) {
                 const touch = e.changedTouches[0];
                 if (e.target.closest('.ctrl-btn') || e.target.closest('.main-btn') || e.target.closest('.camera-btn') || e.target.closest('.joystick-container') || e.target.closest('.nav-btn') || e.target.closest('.skill-btn') || e.target.closest('.color-picker') || e.target.closest('.start-container')) return;
-                launchBombAtMouse(touch.clientX, touch.clientY);
+                useEquippedWeaponAtMouse(touch.clientX, touch.clientY);
              }
         }, { passive: false });
 
@@ -3097,16 +3230,23 @@
     function updateItemSlot() {
         const slot = document.getElementById('item-slot');
         const icon = document.getElementById('item-slot-icon');
-        const count = (playerConfig.bombCount || 0) + (playerConfig.hasBomb ? 1 : 0);
-        if (count > 0) {
+        const weapon = playerConfig.equippedWeapon;
+        const count = playerConfig.weaponCount || 0;
+
+        if (count > 0 && weapon) {
             slot.style.display = 'flex';
-            icon.innerText = `💣 x${count}`;
+            const weaponIcon = weapon === 'bomb' ? '💣' : '🚩';
+            icon.innerText = `${weaponIcon} x${count}`;
         } else {
+            playerConfig.equippedWeapon = null;
+            playerConfig.weaponCount = 0;
             slot.style.display = 'none';
         }
     }
 
-    function launchBombAtMouse(x, y) {
+    function useEquippedWeaponAtMouse(x, y) {
+        if (!playerConfig.equippedWeapon || (playerConfig.weaponCount || 0) <= 0) return;
+
         mouse.x = (x / window.innerWidth) * 2 - 1;
         mouse.y = -(y / window.innerHeight) * 2 + 1;
 
@@ -3115,22 +3255,33 @@
 
         let targetPos = null;
         for (let i = 0; i < intersects.length; i++) {
-            if (intersects[i].object.geometry.type === 'CircleGeometry' || intersects[i].object.geometry.type === 'PlaneGeometry') {
+            if (intersects[i].object.geometry.type === 'CircleGeometry' || intersects[i].object.geometry.type === 'PlaneGeometry' || intersects[i].object.geometry.type === 'CylinderGeometry') {
                 targetPos = intersects[i].point;
                 break;
             }
         }
 
         if (targetPos) {
-            if ((playerConfig.bombCount || 0) > 0) {
-                playerConfig.bombCount--;
-            } else {
-                playerConfig.hasBomb = false;
+            if (playerConfig.equippedWeapon === 'bomb') {
+                playerConfig.weaponCount--;
+                if (playerConfig.weaponCount <= 0) {
+                    playerConfig.equippedWeapon = null;
+                    playerConfig.hasBomb = false;
+                }
+                updateItemSlot();
+                saveGame();
+                launchedBombs.push(new LaunchedBomb(player.position, targetPos));
+                try { SoundManager.playJump(); } catch(e){}
+            } else if (playerConfig.equippedWeapon === 'landmine') {
+                playerConfig.weaponCount--;
+                if (playerConfig.weaponCount <= 0) {
+                    playerConfig.equippedWeapon = null;
+                }
+                updateItemSlot();
+                saveGame();
+                placedLandmines.push(new PlacedLandmine(targetPos, 'player'));
+                try { SoundManager.playCollect(); } catch(e){}
             }
-            updateItemSlot();
-            saveGame();
-            launchedBombs.push(new LaunchedBomb(player.position, targetPos));
-            try { SoundManager.playJump(); } catch(e){} // Som de lançamento
         }
     }
 
@@ -3262,6 +3413,11 @@
         bombs.forEach(b => scene.remove(b.mesh));
         bombs = [];
         lastBombSpawn = Date.now();
+        landmineItems.forEach(lm => scene.remove(lm.mesh));
+        landmineItems = [];
+        lastLandmineSpawn = Date.now();
+        placedLandmines.forEach(plm => plm.remove());
+        placedLandmines = [];
         launchedBombs.forEach(lb => lb.cleanup());
         launchedBombs = [];
 
@@ -3469,6 +3625,10 @@
         sparks = [];
         bombs.forEach(b => scene.remove(b.mesh));
         bombs = [];
+        landmineItems.forEach(lm => scene.remove(lm.mesh));
+        landmineItems = [];
+        placedLandmines.forEach(plm => plm.remove());
+        placedLandmines = [];
         launchedBombs.forEach(lb => lb.cleanup());
         launchedBombs = [];
     }
@@ -3613,19 +3773,45 @@
         // Colisões com Bombas
         allBlades.forEach(b => {
             if (b.cfg.isFallen) return;
-            if (b.mesh !== player && b.cfg.hasBomb) return;
+            // Se já tiver uma arma diferente equipada (e quantidade > 0), não pode pegar bomba
+            if (b.cfg.equippedWeapon && b.cfg.equippedWeapon !== 'bomb' && b.cfg.weaponCount > 0) return;
+
             bombs.forEach(bombItem => {
                 if (bombItem.active) {
                     const d = b.mesh.position.distanceTo(bombItem.mesh.position);
                     const pickupRadius = (b.cfg.collisionRadius || 1.65) + 1.2;
                     if (d < pickupRadius) {
                         bombItem.collect();
+                        b.cfg.equippedWeapon = 'bomb';
+                        b.cfg.weaponCount = (b.cfg.weaponCount || 0) + 1;
+                        b.cfg.hasBomb = true;
                         if (b.mesh === player) {
-                            b.cfg.bombCount = (b.cfg.bombCount || 0) + 1;
                             updateItemSlot();
                             saveGame();
-                        } else {
-                            b.cfg.hasBomb = true;
+                        }
+                        SoundManager.playCollect();
+                    }
+                }
+            });
+        });
+
+        // Colisões com Landmine Items
+        allBlades.forEach(b => {
+            if (b.cfg.isFallen) return;
+            // Se já tiver uma arma diferente equipada (e quantidade > 0), não pode pegar mina terrestre
+            if (b.cfg.equippedWeapon && b.cfg.equippedWeapon !== 'landmine' && b.cfg.weaponCount > 0) return;
+
+            landmineItems.forEach(lmItem => {
+                if (lmItem.active) {
+                    const d = b.mesh.position.distanceTo(lmItem.mesh.position);
+                    const pickupRadius = (b.cfg.collisionRadius || 1.65) + 1.2;
+                    if (d < pickupRadius) {
+                        lmItem.collect();
+                        b.cfg.equippedWeapon = 'landmine';
+                        b.cfg.weaponCount = (b.cfg.weaponCount || 0) + 1;
+                        if (b.mesh === player) {
+                            updateItemSlot();
+                            saveGame();
                         }
                         SoundManager.playCollect();
                     }
@@ -3799,6 +3985,38 @@
             }
             return active;
         });
+
+        landmineItems = landmineItems.filter(lm => {
+            const active = lm.update();
+            if (!active) {
+                helperConfigs.forEach(hc => hc.perceivedLandmines && hc.perceivedLandmines.delete(lm.mesh.uuid));
+                enemyConfigs.forEach(c => c.perceivedLandmines && c.perceivedLandmines.delete(lm.mesh.uuid));
+            }
+            return active;
+        });
+
+        // Placed Landmines update and proximity explosion check
+        placedLandmines = placedLandmines.filter(plm => {
+            if (!plm.update()) return false;
+            if (Date.now() < plm.armTime) return true; // not armed yet
+
+            // Check collision with all pawns
+            const allBlades = [{mesh: player, cfg: playerConfig}];
+            helperConfigs.forEach(hc => allBlades.push({mesh: hc.mesh, cfg: hc}));
+            allBlades.push(...enemies.map((e, i) => ({mesh: e.pivot, cfg: enemyConfigs[i]})));
+
+            for (let b of allBlades) {
+                if (b.cfg.isFallen) continue;
+                const dist = b.mesh.position.distanceTo(plm.mesh.position);
+                const triggerDist = (b.cfg.collisionRadius || 1.65) + 0.8;
+                if (dist < triggerDist) {
+                    plm.explode();
+                    return false;
+                }
+            }
+            return true;
+        });
+
         launchedBombs = launchedBombs.filter(lb => lb.update());
 
         if (raceActive && Date.now() - lastHeartSpawn > 10000 && hearts.length < 3) {
@@ -3809,6 +4027,11 @@
         if (raceActive && Date.now() - lastBombSpawn > 15000 && bombs.length < 2) {
             bombs.push(new Bomb());
             lastBombSpawn = Date.now();
+        }
+
+        if (raceActive && Date.now() - lastLandmineSpawn > 18000 && landmineItems.length < 2) {
+            landmineItems.push(new LandmineItem());
+            lastLandmineSpawn = Date.now();
         }
 
         if (!gameStarted || (gameOver && !resultPending)) {
@@ -4153,7 +4376,20 @@
             }
         }
 
-        // Target priority: Perceived Hearts > Perceived Bombs > Opponent
+        // AI Landmine Perception & Item Perception
+        if (!config.perceivedLandmines) config.perceivedLandmines = new Map();
+
+        if (Math.random() < 0.01) {
+            if (!config.equippedWeapon && landmineItems.length > 0) {
+                landmineItems.forEach(lm => {
+                    if (lm.active && !config.perceivedLandmines.has(lm.mesh.uuid)) {
+                        if (Math.random() < 0.3) config.perceivedLandmines.set(lm.mesh.uuid, lm);
+                    }
+                });
+            }
+        }
+
+        // Target priority: Perceived Hearts > Perceived Weapons > Opponent
         let targetPos = null;
         if (config.stamina < 70 && config.perceivedHearts.size > 0) {
             let heartId = config.perceivedHearts.keys().next().value;
@@ -4163,13 +4399,21 @@
             } else {
                 config.perceivedHearts.delete(heartId);
             }
-        } else if (config.perceivedBombs.size > 0) {
+        } else if (!config.equippedWeapon && config.perceivedBombs.size > 0) {
             let bombId = config.perceivedBombs.keys().next().value;
             let targetBomb = config.perceivedBombs.get(bombId);
             if (targetBomb) {
                 targetPos = targetBomb.mesh.position.clone();
             } else {
                 config.perceivedBombs.delete(bombId);
+            }
+        } else if (!config.equippedWeapon && config.perceivedLandmines.size > 0) {
+            let lmId = config.perceivedLandmines.keys().next().value;
+            let targetLm = config.perceivedLandmines.get(lmId);
+            if (targetLm) {
+                targetPos = targetLm.mesh.position.clone();
+            } else {
+                config.perceivedLandmines.delete(lmId);
             }
         } else {
             // Default: target opponent
@@ -4221,8 +4465,8 @@
             }
         });
 
-        // Launch bomb logic (1% chance to launch if opponent is close)
-        if (config.hasBomb && Math.random() < 0.01) {
+        // AI Weapon Usage logic (Bomb or Landmine)
+        if (config.equippedWeapon && (config.weaponCount || config.hasBomb) && Math.random() < 0.01) {
             let nearestOpponent = null;
             let minDist = Infinity;
 
@@ -4240,8 +4484,16 @@
                 nearestOpponent = player;
             }
 
-            if (nearestOpponent && config.mesh.position.distanceTo(nearestOpponent.position) < 50) {
-                launchBomb(config, isHelper);
+            if (nearestOpponent && config.mesh.position.distanceTo(nearestOpponent.position) < 40) {
+                if (config.equippedWeapon === 'landmine') {
+                    // Place landmine on current ground
+                    placedLandmines.push(new PlacedLandmine(config.mesh.position, isHelper ? 'helper' : 'enemy'));
+                    config.weaponCount--;
+                    if (config.weaponCount <= 0) config.equippedWeapon = null;
+                    try { SoundManager.playCollect(); } catch(e){}
+                } else if (config.equippedWeapon === 'bomb' || config.hasBomb) {
+                    launchBomb(config, isHelper);
+                }
             }
         }
     }
